@@ -51,8 +51,8 @@
  * answer. It cannot be a pose either, and for the plainest of the three
  * reasons: there are as many fingerings as there are notes, and a named table
  * of shapes is a vocabulary rather than a keyboard. So the fingering comes from
- * the instrument, as `Contact.fingers`, and lands here as four closures added
- * on top of whatever `curl` the shape asked for. See `FINGER_THROW`.
+ * the instrument, as `Contact.fingers`, and lands here as four closures that
+ * push each fingertip into its key or lift it off. See `FINGER_PRESS`.
  *
  * ## Why the fingers are cheap
  *
@@ -193,6 +193,14 @@ export interface HandPose {
    * evening.
    */
   align: number;
+
+  /**
+   * The fingers sit on a row of keys, so the wrist may not turn the hand to
+   * follow the forearm: a deviation of twenty degrees about the palm swings the
+   * ring finger a key's width off its pearl while the index stays put. The
+   * wrist still pitches, which moves the row as one.
+   */
+  onRow?: true;
 }
 
 /**
@@ -297,7 +305,7 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * `spread` is the other half, 0.10 where `keys` is 0.32. Piano fingers fan
    * across a bed; these are stacked in a column down the tube, one behind the
    * next, and the rig's own knuckle spacing nearly gets there unaided — `0.46 R`
-   * is 32 mm on a mean player against a tenor's 41 mm stations, so a tenth of
+   * is 32 mm on a mean player against a tenor's 34 mm pearls, so a tenth of
    * the splay closes the rest of it. Fanned any further the hand reads as laid
    * *across* the keywork rather than on it, which is the other thing that was
    * wrong with borrowing a pianist's shape.
@@ -306,8 +314,12 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * normal already turns the palm to face the tube and the arm arrives on its
    * own side of it, so what is left for the pose to say is that the knuckles
    * ride a shade above the pearls and the fingers hook down onto them.
+   *
+   * The curls are uneven so the fingertips are level: the middle finger is 8 %
+   * longer than the index and the little finger 16 % shorter, and a row of
+   * pearls is a straight line. `arch` and `valve` are levelled the same way.
    */
-  wrap: { curl: [0.54, 0.58, 0.60, 0.64], tip: 0.72, spread: 0.10, thumbCurl: 0.45, thumbOut: 0.14, cup: 0.52, wrist: 0.05, touch: 1.00, tool: 0.00, align: 0.35 },
+  wrap: { curl: [0.54, 0.55, 0.54, 0.51], tip: 0.72, spread: 0.10, thumbCurl: 0.80, thumbOut: 0.14, cup: 0.52, wrist: 0.05, touch: 1.00, tool: 0.00, align: 0.35, onRow: true },
   /**
    * Arched *up* over a tube held sideways, thumb underneath taking the weight.
    *
@@ -332,7 +344,7 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * balanced on three points, not held, and a hand that looked like it had hold
    * of one would be the wrong instrument.
    */
-  arch: { curl: [0.40, 0.44, 0.46, 0.50], tip: 0.58, spread: 0.14, thumbCurl: 0.20, thumbOut: 0.08, cup: 0.22, wrist: 0.14, touch: 1.00, tool: 0.00, align: 0.40 },
+  arch: { curl: [0.40, 0.43, 0.40, 0.33], tip: 0.58, spread: 0.14, thumbCurl: 0.20, thumbOut: 0.08, cup: 0.22, wrist: 0.14, touch: 1.00, tool: 0.00, align: 0.40, onRow: true },
   /**
    * Three fingertips standing on three buttons, thumb hooked under the
    * leadpipe.
@@ -345,16 +357,18 @@ export const HAND_POSES: Record<HandPoseId, HandPose> = {
    * casing block being the other half.
    *
    * `spread` goes the other way from `wrap`'s and further than `keys`', to
-   * 0.44. The valve buttons are 47 mm apart down the horn where these knuckles
+   * 0.75. The valve buttons are 47 mm apart down the horn where these knuckles
    * sit about 32 mm apart, so the hand has to open out along the casing block
    * to stand on all three at once — the one blown instrument here whose keys
-   * are *wider* apart than the fingers that play them.
+   * are *wider* apart than the fingers that play them. Measured with the rig:
+   * 0.75 puts the three tips 47 mm apart, and the middle finger's curl is
+   * eased so its extra length does not sink it into its button.
    *
-   * The little finger is curled further than the other three and articulates
-   * not at all. It is not on a button: it rests over the hook and stays there,
-   * which is why `trumpet.ts` hands it the neutral 0.5.
+   * The little finger articulates not at all. It is not on a button: it rests
+   * over the hook and stays there, which is why `trumpet.ts` hands it the
+   * neutral 0.5.
    */
-  valve: { curl: [0.46, 0.48, 0.50, 0.60], tip: 0.66, spread: 0.44, thumbCurl: 0.32, thumbOut: 0.20, cup: 0.34, wrist: 0.06, touch: 1.00, tool: 0.00, align: 0.45 },
+  valve: { curl: [0.46, 0.43, 0.46, 0.41], tip: 0.66, spread: 0.75, thumbCurl: 0.32, thumbOut: 0.20, cup: 0.34, wrist: 0.06, touch: 1.00, tool: 0.00, align: 0.45, onRow: true },
   /**
    * Two hands closed into a shell round the ends of a harmonica.
    *
@@ -636,6 +650,7 @@ export function blendPoses(a: HandPose, b: HandPose, t: number): HandPose {
     touch: mix(a.touch, b.touch),
     tool: mix(a.tool, b.tool),
     align: mix(a.align, b.align),
+    ...((k < 0.5 ? a.onRow : b.onRow) ? { onRow: true as const } : {}),
   };
 }
 
@@ -697,7 +712,7 @@ export interface HandRig {
    *
    * Additive on `HandPose.curl` and eased on its own clock, because it changes
    * for a different reason and at a different rate: the shape is the job and
-   * the fingering is the note. See `FINGER_THROW`.
+   * the fingering is the note. See `FINGER_PRESS`.
    */
   setFingers(close: ArrayLike<number> | undefined): void;
   /**
@@ -731,26 +746,22 @@ const WRIST_TAU = 0.12;
 const WRIST_LIMIT = 0.42;
 
 /**
- * How much of the curl range a fingering is allowed to move a finger.
+ * How far a fingering moves a fingertip off the shape's own position, metres:
+ * a pressed finger goes `FINGER_PRESS` into its key and a lifted one rises
+ * `FINGER_LIFT` off it. Uneven on purpose: a key travels a few millimetres, so
+ * the press is short and the models place their contacts for it, while the
+ * lift is what an audience sees a hand doing and is given room to read.
  *
- * The pose is the hand at rest over its own keys, and this is what a finger
- * adds to that going down and takes off it coming up: a fully pressed finger is
- * half of this more curled than the shape asked for, a lifted one half of it
- * less. **A swing about the pose, not a range from it** — so a model with
- * nothing to say about a finger says the middle of it and moves nothing, which
- * is how a trumpeter's little finger stays in the ring hook while the other
- * three work. See `Contact.fingers`.
+ * Moved as a *displacement*, solved at both joints, rather than as extra curl,
+ * so every finger travels the same distance whatever shape it started in. The
+ * direction is the arc a knuckle flex draws: square to the finger's reach,
+ * toward the palm. That is the one direction a finger can always move, and it
+ * is into the key on any hand whose fingers lie along the key face.
  *
- * Under a third of the range, which is about 17° each way at the knuckle and,
- * once the second joint has multiplied it, a good two centimetres at the
- * fingertip on a hand this size. A saxophone key lifts four millimetres. This
- * is the same lie the models tell with their pads and it is told for the same
- * reason: what is being drawn is not the key travel, it is that a finger moved,
- * and at ten metres a truthful four millimetres is a still hand.
- *
- * It is added *after* `aimTouch` has solved, deliberately — see there.
+ * `aimTouch` deliberately solves without it, so a press never shunts the hand.
  */
-const FINGER_THROW = 0.32;
+const FINGER_PRESS = 0.007;
+const FINGER_LIFT = 0.020;
 
 /** How long a finger takes to arrive. Quicker than the hand: a key is thrown. */
 const FINGER_TAU = 0.045;
@@ -948,7 +959,7 @@ export function buildHand(
    *
    * ## The fingering is not in here, and that is the whole of why it works
    *
-   * `FINGER_THROW` moves the drawn index by up to a sixth of the curl range and
+   * `FINGER_LIFT` moves the drawn index by up to two centimetres and
    * this solve deliberately does not see it. The rig places a hand by subtracting
    * `touchPoint` from the contact, so anything that moves the touch point moves
    * the *hand*: a saxophonist lifting an index finger off a pearl would have had
@@ -960,8 +971,13 @@ export function buildHand(
    * the key it is pressing, which is about what a key does, and a lifted one
    * lifts — which is the only one of the two anybody was ever going to notice.
    */
+  /** The per-hand curl bias, except on a row of keys, where the keys say where the fingers are. */
+  function curlBias(i: number): number {
+    return target.onRow ? 0 : (bias.curl[i] ?? 0);
+  }
+
   function aimTouch(pose: HandPose, cup: number, tip: number): void {
-    const curl = clamp((pose.curl[0] ?? 0) + (bias.curl[0] ?? 0), 0, 1);
+    const curl = clamp((pose.curl[0] ?? 0) + curlBias(0), 0, 1);
     const t1 = Math.PI / 2 + curl * 1.75 + cup * 0.16;
     const t2 = t1 + tip * curl * 1.45;
     // The proximal bone reaches its child joint at 0.88 of its length; the pad
@@ -991,24 +1007,38 @@ export function buildHand(
     for (let i = 0; i < fingers.length; i++) {
       const f = fingers[i];
       if (!f) continue;
-      const curl = clamp(
-        (pose.curl[i] ?? 0) + (bias.curl[i] ?? 0)
-          // The fingering, on top of the shape. Toward the palm is toward the
-          // instrument for every hand placed by a contact normal — the palm
-          // faces `-normal` by construction — so one sign is right for a key
-          // cup on the far side of a saxophone, a pad on top of a flute and a
-          // valve button on top of a trumpet alike.
-          + ((fingerAt[i] ?? FINGER_NEUTRAL) - FINGER_NEUTRAL) * FINGER_THROW,
-        0, 1,
-      );
+      const curl = clamp((pose.curl[i] ?? 0) + curlBias(i), 0, 1);
       // `+π/2` lays the bone along `+z`; anything beyond that folds it toward
       // the palm, which is `-y`. One angle does the whole knuckle.
-      f.base.rotation.set(
-        Math.PI / 2 + curl * 1.75 + cup * 0.16,
-        0,
-        -thumbSign * f.fan * spread * 0.24,
-      );
-      f.tip.rotation.x = tip * curl * 1.45;
+      let t1 = Math.PI / 2 + curl * 1.75 + cup * 0.16;
+      let t2 = tip * curl * 1.45;
+      // The fingering: the pad moves `press` along the knuckle's flex arc, and
+      // both joints share the work. See `FINGER_PRESS`.
+      const at = (fingerAt[i] ?? FINGER_NEUTRAL) - FINGER_NEUTRAL;
+      const press = at * 2 * (at > 0 ? FINGER_PRESS : FINGER_LIFT);
+      if (press !== 0) {
+        const l1 = f.length * 0.88;
+        const l2 = f.length * 0.62;
+        const py = l1 * Math.cos(t1) + l2 * Math.cos(t1 + t2);
+        const pz = l1 * Math.sin(t1) + l2 * Math.sin(t1 + t2);
+        const reach = Math.hypot(py, pz);
+        const goalY = py - press * pz / reach;
+        const goalZ = pz + press * py / reach;
+        for (let it = 0; it < 3; it++) {
+          const s1 = Math.sin(t1); const c1 = Math.cos(t1);
+          const s12 = Math.sin(t1 + t2); const c12 = Math.cos(t1 + t2);
+          const ey = goalY - (l1 * c1 + l2 * c12);
+          const ez = goalZ - (l1 * s1 + l2 * s12);
+          const a = -(l1 * s1 + l2 * s12); const b = -l2 * s12;
+          const c = l1 * c1 + l2 * c12; const d = l2 * c12;
+          const det = a * d - b * c;
+          if (Math.abs(det) < 1e-7) break;
+          t1 += clamp((ey * d - b * ez) / det, -0.35, 0.35);
+          t2 += clamp((a * ez - c * ey) / det, -0.5, 0.5);
+        }
+      }
+      f.base.rotation.set(t1, 0, -thumbSign * f.fan * spread * 0.24);
+      f.tip.rotation.x = t2;
     }
     thumbBase.rotation.set(
       Math.PI / 2 - 0.22 + pose.thumbCurl * 1.30,
@@ -1039,7 +1069,7 @@ export function buildHand(
       current.curl[i] = (current.curl[i] ?? 0) + d;
       moved += Math.abs(d);
     }
-    const step = (key: Exclude<keyof HandPose, 'curl'>): void => {
+    const step = (key: Exclude<keyof HandPose, 'curl' | 'onRow'>): void => {
       const d = (target[key] - current[key]) * k;
       current[key] += d;
       moved += Math.abs(d);
@@ -1110,7 +1140,7 @@ export function buildHand(
     },
     setWrist(e: number, d: number): void {
       wantExtend = clamp(Number.isFinite(e) ? e : 0, -WRIST_LIMIT, WRIST_LIMIT);
-      wantDeviate = clamp(Number.isFinite(d) ? d : 0, -WRIST_LIMIT, WRIST_LIMIT);
+      wantDeviate = target.onRow ? 0 : clamp(Number.isFinite(d) ? d : 0, -WRIST_LIMIT, WRIST_LIMIT);
     },
     update(dt: number): void {
       // The wrist is eased and written every frame, outside the `settled`

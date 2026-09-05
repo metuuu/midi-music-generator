@@ -3,36 +3,18 @@
  *
  * Clarinet — straight, black, and held down the front.
  *
- * The clarinet and the flute have to be built as opposites or the wind section
- * reads as one instrument at two angles. This one is the vertical: a dark tube
- * dropping from the mouth toward the floor, the fingers stacked one above the
- * other down its front, the bell pointing at the boards. The flute is the
- * horizontal, and neither should be mistakable for the other in silhouette
- * from the back of the room.
+ * The clarinet and the flute are built as opposites so the wind section does
+ * not read as one instrument at two angles: this is the vertical, a dark tube
+ * dropping from the mouth toward the boards with the fingers stacked down its
+ * front, and the flute is the horizontal.
  *
- * ## The twelfth
+ * ## Hands
  *
- * A clarinet is a stopped pipe, so it overblows a **twelfth** rather than an
- * octave. That single acoustic fact is why its fingering pattern repeats every
- * nineteen semitones instead of twelve, why the chalumeau register runs so far
- * up before the register key is needed, and why a clarinettist's hands crawl
- * the whole length of the instrument in a way a flautist's never do. It is
- * cheap to encode and it is the difference between animating a clarinet and
- * animating a black flute.
- *
- * Nineteen stations, therefore. The lowest note has everything closed; each
- * semitone above opens one more hole from the bell end; the register key
- * repeats the lot a twelfth higher.
- *
- * ## Two joints, two hands
- *
- * The upper joint is the left hand's and the lower joint is the right's, and
- * neither hand crosses the tenon between them. `resolve` answers per
- * `effector`: the hand that owns the speaking hole is on it, the other waits
- * at its own end of its own joint. It used to ignore `effector` and give both
- * hands the same hole, which stacks them on one point about a third of the way
- * down a 66 cm tube — two hands in one place, and nothing holding the rest of
- * the instrument.
+ * The left hand owns the upper joint and the right the lower, each with one
+ * contact: the index finger on the top hole of its joint. The note is
+ * `Contact.fingers`, from the same chart that opens the pads, so the fingers
+ * and the keywork cannot disagree. A clarinet overblows a twelfth, so the
+ * chalumeau chart repeats under the register key from written B4.
  */
 
 import {
@@ -47,7 +29,7 @@ import { BLOWN_MOUTH_Y, mouthFor } from './mouth.js';
 import type {
   Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo, fingersOnStack } from './types.js';
+import { addTo, indexToCentre } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Fingering
@@ -55,29 +37,76 @@ import { addTo, fingersOnStack } from './types.js';
 
 /** A Bb clarinet sounds a major second below what it reads. */
 const TRANSPOSE = 2;
-/** Written E3, the bottom of the horn, everything closed. */
+/** Written E3, the bottom of the horn. */
 const WRITTEN_FLOOR = 52;
-/** The clarinet overblows a twelfth. This number is the whole instrument. */
-const STATIONS = 19;
+/** Written B4 is where the register key repeats the chalumeau a twelfth up. */
+const CLARION = 19;
+/** Written C#6 and above: the altissimo, its own short cycle. */
+const ALTISSIMO_FROM = 33;
 
-function mod(a: number, n: number): number {
-  return ((a % n) + n) % n;
+/** Levers beyond the six holes: the pinky keys, the throat keys. */
+type Key = 'e' | 'f' | 'f#' | 'ab' | 'c#' | 'g#' | 'a';
+
+interface Row {
+  /** Left hand, index to little, 1 pressed. */
+  l: FingerCurl;
+  /** Right hand, index to little. */
+  r: FingerCurl;
+  keys?: readonly Key[];
 }
 
 export interface Fingering {
-  /** 0 (all closed, low E) .. 18 (only the top hole closed). */
-  station: number;
-  /** 0 chalumeau, 1 clarion (register key), 2+ altissimo. */
-  register: number;
+  left: FingerCurl;
+  right: FingerCurl;
+  /** The register key, under the left thumb. */
+  register: boolean;
+  keys: readonly Key[];
 }
 
-/** The fingering for a sounding pitch. Pure, and total over the integers. */
+const NONE: readonly Key[] = [];
+
+/** Written E3 up to Bb4, a row a semitone. The thumb hole is behind and not drawn. */
+const CHALUMEAU: readonly Row[] = [
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['e'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['f'] },
+  { l: [1, 1, 1, 1], r: [1, 1, 1, 0], keys: ['f#'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 0] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['ab'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 0, 0] },
+  { l: [1, 1, 1, 0], r: [1, 0, 0, 1], keys: ['ab'] },
+  { l: [1, 1, 1, 0], r: [1, 0, 0, 0] },
+  { l: [1, 1, 1, 0], r: [0, 0, 0, 0] },
+  { l: [1, 1, 1, 1], r: [0, 0, 0, 0], keys: ['c#'] },
+  { l: [1, 1, 0, 0], r: [0, 0, 0, 0] },
+  { l: [1, 1, 0, 0], r: [1, 0, 0, 0] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0] },
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 0] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0], keys: ['g#'] },
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 0] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0], keys: ['g#'] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0], keys: ['a'] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0], keys: ['a'] },
+];
+
+/** Written C#6 up to G6. */
+const ALTISSIMO: readonly Row[] = [
+  { l: [1, 1, 0, 0], r: [1, 0, 0, 0] },
+  { l: [1, 0, 1, 0], r: [1, 0, 0, 0] },
+  { l: [1, 0, 1, 0], r: [1, 1, 0, 0] },
+  { l: [1, 1, 0, 0], r: [0, 1, 0, 0] },
+  { l: [1, 0, 0, 0], r: [1, 1, 1, 0] },
+  { l: [1, 1, 1, 0], r: [1, 0, 0, 0] },
+  { l: [1, 0, 1, 0], r: [0, 0, 0, 0] },
+];
+
+/** The fingering for a sounding pitch. Total: below the horn is all down. */
 export function fingeringFor(midi: number): Fingering {
-  const written = midi + TRANSPOSE;
-  return {
-    station: mod(written - WRITTEN_FLOOR, STATIONS),
-    register: Math.floor((written - WRITTEN_FLOOR) / STATIONS),
-  };
+  const n = midi + TRANSPOSE - WRITTEN_FLOOR;
+  let row: Row;
+  if (n < CLARION) row = CHALUMEAU[Math.max(n, 0)]!;
+  else if (n < ALTISSIMO_FROM) row = CHALUMEAU[n - CLARION]!;
+  else row = ALTISSIMO[(n - ALTISSIMO_FROM) % ALTISSIMO.length]!;
+  return { left: row.l, right: row.r, register: n >= CLARION - 1, keys: row.keys ?? NONE };
 }
 
 // ---------------------------------------------------------------------------
@@ -113,39 +142,57 @@ const SPEC = ARCHETYPES.clarinet;
 const TUBE = 0.66;
 /** Lean from vertical. A clarinettist holds the bell out, not tucked in. */
 const LEAN = -0.52;
-/**
- * Where the lips are along the model's own z. The *height* is this player's,
- * from `mouthFor`, and `station.offset` is derived from both — so the horn and
- * the face cannot drift apart, whoever is holding it.
- */
+/** Where the lips are along the model's own z; the height is this player's. */
 const LIP_Z = -0.16;
-/**
- * How far down the tube from the tip the lips actually close.
- *
- * The reed is bitten about 18 mm from the tip; anchoring the *tip* at the
- * mouth instead puts the whole horn 18 mm too high and leaves the beak inside
- * the player's face.
- */
+/** The reed is bitten about 18 mm from the tip, and that is what sits at the lips. */
 const BITE = 0.018;
-/** Finger holes run between these distances from the mouthpiece. */
-const FIRST_HOLE = 0.17;
-const LAST_HOLE = 0.53;
-/** Stations 0..9 are the right hand's (lower joint), 10..18 the left's. */
-const JOINT_SPLIT = 10;
-/** Only ten pads are drawn for nineteen stations; the rest are open holes. */
-const PAD_STATIONS: readonly number[] = [0, 2, 4, 6, 8, 10, 12, 14, 16, 18];
+/** How far a pad swings off its hole, radians about the rod. */
+const LIFT = 0.40;
+
+interface Hole {
+  name: string;
+  /** Height up the tube from the bell rim, metres. */
+  y: number;
+}
+
+/** The six finger holes: three on the upper joint, three on the lower. */
+const HOLES: readonly Hole[] = [
+  { name: 'l1', y: 0.460 }, { name: 'l2', y: 0.428 }, { name: 'l3', y: 0.395 },
+  { name: 'r1', y: 0.305 }, { name: 'r2', y: 0.271 }, { name: 'r3', y: 0.237 },
+];
+
+interface Pad {
+  name: string;
+  y: number;
+  /** Across the tube; positive toward the player's left. */
+  x: number;
+  small?: boolean;
+  /** 1 on its hole, 0 lifted. Closed-standing pads answer 1 until their key is pressed. */
+  closed(f: Fingering): number;
+}
+
+const has = (f: Fingering, k: Key): boolean => f.keys.includes(k);
+const on = (b: boolean): number => (b ? 1 : 0);
+
+/**
+ * The pads, bell end first. The three at the bottom stand open and the pinky
+ * levers close them in a chain; the rest stand closed and their key opens them.
+ */
+const PADS: readonly Pad[] = [
+  { name: 'e', y: 0.110, x: 0, closed: (f) => on(has(f, 'e')) },
+  { name: 'f', y: 0.150, x: 0, closed: (f) => on(has(f, 'e') || has(f, 'f')) },
+  { name: 'f#', y: 0.190, x: 0.012, closed: (f) => on(has(f, 'e') || has(f, 'f') || has(f, 'f#')) },
+  { name: 'ab', y: 0.215, x: -0.012, small: true, closed: (f) => on(!has(f, 'ab')) },
+  { name: 'c#', y: 0.300, x: 0.012, small: true, closed: (f) => on(!has(f, 'c#')) },
+  { name: 'g#', y: 0.500, x: 0.010, small: true, closed: (f) => on(!has(f, 'g#')) },
+  { name: 'a', y: 0.522, x: 0.004, small: true, closed: (f) => on(!has(f, 'a')) },
+];
 
 export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
   const rng = new Rng(`clarinet:${opts.seed}`);
 
-  /**
-   * This player's lips; the tube is solved so the bite lands on them.
-   *
-   * The fallback is the blown family's mouth height rather than this
-   * archetype's `workHeight`, which is 1.3 and measures the keywork — a third
-   * of the way down the horn from the reed.
-   */
+  /** This player's lips; the tube is solved so the bite lands on them. */
   const mouth = mouthFor(opts, BLOWN_MOUTH_Y);
 
   // Grenadilla, or the cheaper resin that looks the same at ten metres.
@@ -159,18 +206,10 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const matReed = shared('reed', () => new MeshStandardMaterial({
     color: '#d9c395', roughness: 0.7, metalness: 0.0,
   }));
-  /**
-   * The same wood, drawn on both faces. For the bell and nothing else.
-   *
-   * A `LatheGeometry` has no caps, so the bell is a one-sided flare open at
-   * both ends. With the default `FrontSide` its inside is culled, and this
-   * bell points down and out at the front row — the one angle that looks
-   * straight into it — so the horn ends the number with a hole in it.
-   *
-   * It costs one extra face on a 14-segment lathe. The joints, the barrel and
-   * the keywork stay single-sided: they are capped cylinders with no inside
-   * anyone can reach.
-   */
+  const matHole = shared('hole', () => new MeshStandardMaterial({
+    color: '#050403', roughness: 0.9, metalness: 0.0,
+  }));
+  /** Both faces, for the bell alone: it points at the front row, which looks into it. */
   const matBore = shared(`bore:${woodHue}`, () => new MeshStandardMaterial({
     color: woodHue, roughness: 0.42, metalness: 0.02, side: DoubleSide,
   }));
@@ -193,6 +232,8 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const geoReed = shared('reedgeo', () => new BoxGeometry(0.013, 0.055, 0.003));
   const geoRing = shared('ring', () => new TorusGeometry(0.0165, 0.0028, 4, 12).rotateX(Math.PI / 2));
   const geoCup = shared('cup', () => new CylinderGeometry(0.0115, 0.0115, 0.004, 8).rotateX(Math.PI / 2));
+  const geoHole = shared('holegeo', () => new CylinderGeometry(0.0045, 0.0045, 0.003, 10).rotateX(Math.PI / 2));
+  const geoHoleRing = shared('holering', () => new TorusGeometry(0.0072, 0.0014, 4, 12));
   const geoRod = shared('rod', () => new CylinderGeometry(0.0028, 0.0028, 0.30, 6));
   const geoLever = shared('lever', () => new BoxGeometry(0.008, 0.026, 0.006));
   const geoThumb = shared('thumbrest', () => new BoxGeometry(0.018, 0.010, 0.014));
@@ -203,9 +244,7 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
 
   /**
    * Tube frame: local +y runs from the bell rim up to the mouthpiece tip, and
-   * local +z is the *front* of the instrument — the side the finger holes are
-   * on, which faces the audience, with the thumb and register key behind. That
-   * is the right way round and it is the one people get wrong.
+   * local +z is the front, the side the holes are on, which faces the house.
    */
   const tube = addTo(root, new Group());
   tube.rotation.x = LEAN;
@@ -266,123 +305,54 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   register.position.set(0, 0.470, -0.014);
   addTo(register, new Mesh(geoLever, matKeys));
 
-  // --- stations ----------------------------------------------------------
-  /** Distance from the mouthpiece for each of the nineteen fingerings. */
-  const stationY: number[] = [];
-  for (let i = 0; i < STATIONS; i++) {
-    const d = LAST_HOLE - (i / (STATIONS - 1)) * (LAST_HOLE - FIRST_HOLE);
-    stationY.push(TUBE - d);
+  // --- keywork -----------------------------------------------------------
+  /** The finger holes are dark discs with a ring; a finger on one is its cover. */
+  for (const hole of HOLES) {
+    const disc = addTo(tube, new Mesh(geoHole, matHole));
+    disc.name = `hole-${hole.name}`;
+    disc.position.set(0, hole.y, 0.0152);
+    const ring = addTo(tube, new Mesh(geoHoleRing, matKeys));
+    ring.name = `ring-${hole.name}`;
+    ring.position.set(0, hole.y, 0.0158);
   }
 
-  const pads: Group[] = PAD_STATIONS.map((st) => {
+  /** Each pad hangs off a hinge on the rod, so lifting is a turn about the tube's axis. */
+  const hinges: Group[] = PADS.map((pad) => {
     const hinge = addTo(tube, new Group());
-    hinge.position.set(0.017, stationY[st]!, 0.004);
+    hinge.position.set(pad.x + 0.017, pad.y, 0.004);
     const cup = addTo(hinge, new Mesh(geoCup, matKeys));
-    cup.name = `pad-${st}`;
+    cup.name = `pad-${pad.name}`;
     cup.position.set(-0.017, 0, 0.013);
+    if (pad.small) cup.scale.set(0.7, 0.7, 1);
     return hinge;
   });
 
   // --- contacts ----------------------------------------------------------
-  /**
-   * A contact is where the **hand** goes, not where the fingertip goes.
-   *
-   * The stations are 20 mm apart, which is finer than a real clarinet's holes
-   * and deliberately so — the hand walking down the tube is the read. But a
-   * hand is 80 mm across, so putting both palms on adjacent stations either
-   * side of the joint overlaps them. Each palm backs off toward its own end of
-   * the horn by half a hand, which is also where it really is: the finger doing
-   * the work is at one end of the hand, not in the middle of it.
-   *
-   * ## Which side each hand arrives from, which is the whole of `side`
-   *
-   * Both hands finger the *front* of the tube, so it is tempting to give them
-   * one answer and shift it up and down. That is what this did, and it is wrong
-   * in a way that reads instantly: the rig builds a hand basis from
-   * `normal` and `along`, and the fingers come out along `along × normal`. One
-   * `along` for both hands therefore points both sets of fingers the same way
-   * round the tube — so both wrists end up on the *same* side of the clarinet
-   * and the left arm reaches across the right.
-   *
-   * A clarinettist's hands come from opposite sides: left wrist to the player's
-   * left with the fingers reaching right, right wrist to their right with the
-   * fingers reaching left. Mirroring `along` is what says so, and it costs a
-   * sign. The knuckle line still runs down the tube in both cases — which is the
-   * thing the old comment was reaching for — it just runs down it the other way
-   * for the other hand.
-   *
-   * `side` is `+1` for the left hand and `−1` for the right, matching `SIDE` in
-   * `performer-look.ts`: the player's right is local −x.
-   */
-  const HAND = 0.030;
-  /** How far round the tube from its centreline each wrist sits. */
-  const WRAP = 0.011;
+  /** From a hole's face, out to the house, to an unpressed index pad: the flesh and the press travel. */
+  const KEY_OFF = 0.011;
+  const HOLE_Z = 0.0167;
 
   /**
-   * The front face of a key pad: the cups sit at `z = 0.017` and are 4 mm deep,
-   * so this is what a fingertip can actually be on.
-   *
-   * `keys` is a `touch: 1` pose, which means the contact is where the *pad of
-   * the index finger* goes — not where the palm goes. At `0.028` that left
-   * every finger 9 mm in front of the key it was supposed to be pressing. The
-   * rest of the family puts the fingertip within a few millimetres of the thing
-   * that moves: the trumpet's is 4 mm off a button by construction.
+   * One contact per hand, placed so the index pad lands on the top hole of its
+   * joint and the other fingers fall down the tube at the rig's spacing. The
+   * back of the hand faces out to its own side and a little forward, so the
+   * fingers come round onto the holes and a knuckle flex seals them; `along` is
+   * mirrored per hand so each wrist stays on its own side with the knuckles
+   * running down the tube.
    */
-  const KEY_Z = 0.020;
-
-  function contactAt(station: number, side: number): Contact {
+  function contactAt(y: number, side: number): Contact {
+    const normal = new Vector3(side, 0, 0.5).normalize();
     return {
-      position: new Vector3(side * WRAP, stationY[station]! + side * HAND, KEY_Z)
-        .applyMatrix4(tubeMatrix),
-      // Out of the front of the tube, angled a little up its length and out
-      // toward this hand's own side: fingers come over the top of a clarinet
-      // from the side the arm is on, never straight in from the front.
-      normal: new Vector3(side * 0.40, 0.25, 1).normalize().transformDirection(tubeMatrix),
-      // Down the tube — and *which way* down it is what puts this hand's
-      // fingers across the front and its wrist out on its own side.
+      position: new Vector3(0, y, HOLE_Z + KEY_OFF).applyMatrix4(tubeMatrix),
+      normal: normal.transformDirection(tubeMatrix),
       along: new Vector3(0, -side, 0).transformDirection(tubeMatrix),
     };
   }
-  const rightContacts: Contact[] = stationY.map((_, i) => contactAt(i, -1));
-  const leftContacts: Contact[] = stationY.map((_, i) => contactAt(i, 1));
-
-  /**
-   * Which of each hand's fingers are down, per speaking hole — keyed by the
-   * speaking station, not by the clamped one a hand is standing at. See
-   * `Contact.fingers`, `fingersOnStack`, and the same table on the saxophone
-   * for what keying it the other way costs.
-   *
-   * The stacks are lopsided here, ten below the tenon and nine above it, and
-   * that is a clarinet: nineteen stations do not halve. It costs the pinkies —
-   * the right hand's covers seven stations and rolls on across all of them
-   * where the sax's covers three — which is closer to the truth than the
-   * arithmetic deserves, because the lower joint's pinky keys really are a
-   * cluster of four levers rather than one hole.
-   */
-  const rightFingers = stationY.map((_, s) => fingersOnStack(0, JOINT_SPLIT - 1, s));
-  const leftFingers = stationY.map((_, s) => fingersOnStack(JOINT_SPLIT, STATIONS - 1, s));
-  /**
-   * Which contact each hand takes. Neither crosses the joint: the right hand
-   * stays on the lower **six-and-a-bit** stations and the left on the upper
-   * ones. Ten, not six-and-a-bit: `JOINT_SPLIT` is 10 and the clamp below is
-   * `station..9`. Six-and-a-bit is the saxophone's `STACK_SPLIT`, and the
-   * paragraph two above this one already gives the clarinet's own split
-   * correctly as ten below the tenon and nine above it.
-   */
-  function stationFor(station: number, right: boolean): number {
-    return right
-      ? Math.min(station, JOINT_SPLIT - 1)
-      : Math.max(station, JOINT_SPLIT);
-  }
-
-  /** Between phrases each hand stays over the middle of its own joint. */
-  const restRight = rightContacts[JOINT_SPLIT - 4]!;
-  const restLeft = leftContacts[JOINT_SPLIT + 4]!;
+  const centre = indexToCentre(opts.height);
+  const leftContact = contactAt(HOLES[0]!.y - centre, 1);
+  const rightContact = contactAt(HOLES[3]!.y - centre, -1);
 
   function copy(c: Contact, fingers?: FingerCurl): Contact {
-    // Including `along` — dropping it here is what made every knuckle axis in
-    // this directory dead code. `fingers` goes by reference: a frozen tuple off
-    // a table, with no in-place transform for a caller to want.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
@@ -399,8 +369,8 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
   const [LO, HI] = SPEC.range;
 
   // --- animation state ---------------------------------------------------
-  const closed: number[] = PAD_STATIONS.map(() => 1);
-  const closedTo: number[] = PAD_STATIONS.map(() => 1);
+  const closed: number[] = PADS.map((p) => p.closed(fingeringFor(LO)));
+  const closedTo: number[] = [...closed];
   let registerAt = 0;
   let registerTo = 0;
   let ring = 0;
@@ -420,15 +390,12 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
 
     resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
       const right = isRight(effector);
-      if (point.kind === 'rest') return copy(right ? restRight : restLeft);
+      const contact = right ? rightContact : leftContact;
+      if (point.kind === 'rest') return copy(contact);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      const speaking = fingeringFor(point.midi).station;
-      const station = stationFor(speaking, right);
-      return copy(
-        (right ? rightContacts : leftContacts)[station]!,
-        (right ? rightFingers : leftFingers)[speaking]!,
-      );
+      const f = fingeringFor(point.midi);
+      return copy(contact, right ? f.right : f.left);
     },
 
     react(point: PlayPoint, force: number, _now: number): void {
@@ -438,34 +405,24 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
       }
       if (point.kind !== 'hole') return;
       if (point.midi < LO || point.midi > HI) return;
-      const { station, register: reg } = fingeringFor(point.midi);
-      for (let i = 0; i < PAD_STATIONS.length; i++) {
-        closedTo[i] = PAD_STATIONS[i]! >= station ? 1 : 0;
-      }
-      registerTo = reg > 0 ? 1 : 0;
-      // A clarinet does not flare — the bell is barely part of the sound
-      // except at the bottom of the horn. What it does is ring, so the bell
-      // gets a short shiver on a hard attack. Nothing else on the instrument
-      // moves, because every finger contact is measured against the tube and a
-      // model whose geometry drifts under its own contacts lies to the hand it
-      // is placing.
+      const f = fingeringFor(point.midi);
+      for (let i = 0; i < PADS.length; i++) closedTo[i] = PADS[i]!.closed(f);
+      registerTo = f.register ? 1 : 0;
+      // A clarinet does not flare; it rings, so the bell gets a short shiver on a hard attack.
       ring = Math.max(ring, Math.min(Math.max(force, 0), 1));
     },
 
     update(now: number): void {
-      // A non-finite beat has to stop here. `dt` would be NaN, every eased
-      // value in this method is `x += (target − x) * k`, and one NaN k turns
-      // the whole instrument into NaN transforms permanently — three.js keeps
-      // drawing it, at no position, for the rest of the show.
+      // A non-finite beat would make every eased value NaN for the rest of the show.
       if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
       if (dt === 0) return;
 
       const k = 1 - Math.exp(-dt / 0.035);
-      for (let i = 0; i < pads.length; i++) {
+      for (let i = 0; i < hinges.length; i++) {
         closed[i] = closed[i]! + (closedTo[i]! - closed[i]!) * k;
-        pads[i]!.rotation.x = -0.26 * (1 - closed[i]!);
+        hinges[i]!.rotation.y = LIFT * (1 - closed[i]!);
       }
       registerAt += (registerTo - registerAt) * k;
       register.rotation.x = 0.45 * registerAt;
@@ -476,9 +433,7 @@ export const buildClarinet: InstrumentBuilder = (opts: InstrumentBuildOptions): 
     },
 
     dispose(): void {
-      // A second call would free the shared buffers out from under every
-      // other one of these on the stage. That renders as nothing at all and
-      // reports nothing, so it is guarded rather than left to be noticed.
+      // A second call would free the shared buffers under every other one on the stage.
       if (disposed) return;
       disposed = true;
       root.removeFromParent();

@@ -13,8 +13,9 @@
  * ## What moves, and what does not
  *
  * `blown: true` means the note is made of air. The horn does not travel to
- * sound a pitch and the player's right hand barely moves — **the fingers move
- * and the air does the rest**. So `react` carries the load here: the derived
+ * sound a pitch and the player's right hand does not move at all: it has one
+ * contact and **the fingers move, and the air does the rest**. So `react`
+ * carries the load here: the derived
  * valves go down, spring back, and the bell flares on a loud one. The horn
  * body itself never moves in `react`, because `resolve` is measured against it
  * and a model whose geometry drifts under its own contacts is a model that
@@ -61,9 +62,9 @@ import type { Effector, PlayPoint } from '../../../concert/types.js';
 import { Rng } from '../../../core/rng.js';
 import { mouthFor } from './mouth.js';
 import type {
-  Contact, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
+  Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo } from './types.js';
+import { addTo, indexToCentre } from './types.js';
 
 // ---------------------------------------------------------------------------
 // The fingering
@@ -117,16 +118,6 @@ export function fingeringFor(midi: number): readonly number[] | undefined {
     if (harmonic < midi) continue;
     const drop = harmonic - midi;
     return drop <= 6 ? VALVES_FOR_DROP[drop]! : undefined;
-  }
-  return undefined;
-}
-
-/** A stable index 0..6 for a fingering, so contacts can be a flat table. */
-function dropFor(midi: number): number | undefined {
-  for (const harmonic of OPEN_HARMONICS) {
-    if (harmonic < midi) continue;
-    const drop = harmonic - midi;
-    return drop <= 6 ? drop : undefined;
   }
   return undefined;
 }
@@ -194,8 +185,8 @@ const CASING_LEN = 0.132;
 const CASING_TOP = 0.048;
 /** Top of a finger button at rest, above the horn's axis. */
 const BUTTON_Y = 0.079;
-/** How far a valve goes down. Short, positive and audible-looking. */
-const VALVE_TRAVEL = 0.009;
+/** How far a valve goes down: what a pressing fingertip travels, so the button stays under it. */
+const VALVE_TRAVEL = 0.006;
 /** Shank tip to rim of the mouthpiece mesh, which is laid out along −z. */
 const MP_LEN = 0.035;
 /**
@@ -408,61 +399,39 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
 
   // --- contacts ----------------------------------------------------------
   /**
-   * Where the right hand goes, per fingering — one entry for each of the seven
-   * things three valves can do.
+   * The right hand: one contact, and it never moves. The index sits on the
+   * first button and the other two fall down the horn at the rig's spacing, so
+   * the contact is the hand's centreline, `indexToCentre` toward the bell from
+   * that button. The note is `Contact.fingers`, one valve one finger in order:
+   * a finger on a pressed valve goes down with it and every other finger rests
+   * on its button, since a trumpeter never lifts them. The little finger is
+   * neutral too, which leaves it in the ring hook.
    *
-   * A trumpeter's hand does not travel: the fingertips sit on the buttons and
-   * stay there. What it does do is follow its own fingers by a centimetre or
-   * two, so the contact is the centroid of the buttons that are down (the
-   * middle button when the horn is open). That is honest about the instrument
-   * — the pitch changes and the hand almost doesn't — and it gives the runtime
-   * something pitch-dependent rather than a constant.
-   *
-   * The y is half a valve's travel below the button top, so the fingertip is
-   * never more than 4 mm off a moving button.
+   * `KEY_OFF` is measured, not derived: it puts a resting pad on its button and
+   * a pressed one on the button it has pushed down.
    */
-  const contacts: Contact[] = VALVES_FOR_DROP.map((combo) => {
-    const zs = combo.length ? combo.map((v) => VALVE_Z[v - 1]!) : [VALVE_Z[1]!];
-    const z = zs.reduce((a, b) => a + b, 0) / zs.length;
-    return {
-      // Slightly to the player's right of the axis, because that is the side
-      // the fingers come from: `SIDE.right` is −x.
-      position: new Vector3(-0.014, BUTTON_Y - VALVE_TRAVEL / 2, z).applyMatrix4(hornMatrix),
-      // Up and out to the player's right: a finger comes down onto a valve from
-      // above and from its own side, never straight down a vertical.
-      normal: new Vector3(-0.22, 1, -0.3).normalize().transformDirection(hornMatrix),
-      /**
-       * Three buttons in a line down the horn, one finger each — so the
-       * knuckles run down the horn too. Without this the fallback roll lays
-       * the fingers *across* the valves and the hand reads as a paw.
-       *
-       * Toward the mouthpiece, not toward the bell, and the sign is doing two
-       * jobs. The rig derives the fingers from `along × normal`, so `+z` aimed
-       * them at the player's right and left the palm out at their *left* —
-       * a right hand reaching across the horn to get at its own buttons. `−z`
-       * puts the wrist on the right where the arm is, and it also puts the
-       * index on the first valve, which is where a trumpeter's index goes.
-       */
-      along: new Vector3(0, 0, -1).transformDirection(hornMatrix),
-      /**
-       * And which of them are down, which on this instrument needs no
-       * derivation at all: one valve, one finger, in order. See
-       * `Contact.fingers`.
-       *
-       * The little finger is `0.5` — the value that means "leave it where the
-       * pose put it" — because a trumpeter's is not on a button. It sits in the
-       * ring hook above the leadpipe and stays there for the whole number, and
-       * a pinky that pumped along with the other three would be the one finger
-       * on the horn doing something no trumpeter does.
-       */
-      fingers: [
-        combo.includes(1) ? 1 : 0,
-        combo.includes(2) ? 1 : 0,
-        combo.includes(3) ? 1 : 0,
-        0.5,
-      ] as const,
-    };
-  });
+  const KEY_OFF = 0.004;
+  /**
+   * The `valve` pose splays the fingers to reach buttons 47 mm apart, and the
+   * splay carries the index a further half of `indexToCentre` toward the
+   * mouthpiece, so the hand's centreline sits that much nearer the bell.
+   */
+  const SPLAY = 1.47;
+  const rightContact: Contact = {
+    position: new Vector3(0.002, BUTTON_Y + KEY_OFF, VALVE_Z[0]! + SPLAY * indexToCentre(opts.height))
+      .applyMatrix4(hornMatrix),
+    // Up and a little out to the player's right, where the arm is; no lean
+    // along the horn, so the knuckle line stays level with the three buttons.
+    normal: new Vector3(-0.22, 1, 0).normalize().transformDirection(hornMatrix),
+    // Toward the mouthpiece: that puts the wrist on the player's right and the
+    // index on the first valve, because the rig seats a right hand's index at
+    // the positive end of the knuckle line.
+    along: new Vector3(0, 0, -1).transformDirection(hornMatrix),
+  };
+  /** A finger not on a pressed valve rests on its button, neither down nor lifted. */
+  const fingersFor = (combo: readonly number[]): FingerCurl => [
+    combo.includes(1) ? 1 : 0.5, combo.includes(2) ? 1 : 0.5, combo.includes(3) ? 1 : 0.5, 0.5,
+  ];
 
   /**
    * The left hand, which does not finger anything.
@@ -493,19 +462,12 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
     along: new Vector3(0, 0, 1).transformDirection(hornMatrix),
   };
 
-  /** Where a hand waits when nothing is sounding: the open-horn hand position. */
-  const restContact = contacts[0]!;
-
-  function copy(c: Contact): Contact {
-    // `along` is copied, not dropped. The old `copy` rebuilt a contact from
-    // `position` and `normal` only, so every `along` in this directory was
-    // computed, stored and then thrown away one call later. `fingers` rides
-    // along by reference — a frozen tuple, with nothing to transform.
+  function copy(c: Contact, fingers?: FingerCurl): Contact {
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
       ...(c.along ? { along: c.along.clone() } : {}),
-      ...(c.fingers ? { fingers: c.fingers } : {}),
+      ...(fingers ? { fingers } : {}),
     };
   }
 
@@ -549,12 +511,12 @@ export const buildTrumpet: InstrumentBuilder = (opts: InstrumentBuildOptions): I
       // does not know is `undefined` for *both* hands, not a left hand parked
       // on a horn that is not playing anything it understands.
       if (point.kind === 'rest') {
-        return copy(fingers(effector) ? restContact : leftContact);
+        return copy(fingers(effector) ? rightContact : leftContact);
       }
       if (point.kind !== 'valve') return undefined;
-      const drop = dropFor(point.midi);
-      if (drop === undefined) return undefined;
-      return copy(fingers(effector) ? contacts[drop]! : leftContact);
+      const combo = fingeringFor(point.midi);
+      if (combo === undefined) return undefined;
+      return fingers(effector) ? copy(rightContact, fingersFor(combo)) : copy(leftContact);
     },
 
     react(point: PlayPoint, force: number, _now: number): void {

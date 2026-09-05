@@ -445,45 +445,18 @@ export interface InstrumentBuildOptions {
 /** A convenience for models that have nothing to settle. */
 export const NO_UPDATE = (): void => {};
 
+/**
+ * How far the rig's touch point sits from the index finger along the knuckle
+ * line, metres. `buildHand` seats the knuckles 0.46 R apart about the hand's
+ * centreline and `aimTouch` solves on that centreline, so a contact meant for
+ * the index goes this far toward the little finger.
+ */
+export function indexToCentre(height: number | undefined): number {
+  return 1.5 * 0.46 * 0.04 * Math.min(Math.max(height ?? 1.75, 1.35), 2.10);
+}
+
 /** Attach a child and return it, for terse builders. */
 export function addTo<T extends Object3D>(parent: Object3D, child: T): T {
   parent.add(child);
   return child;
-}
-
-/**
- * `Contact.fingers` for a hand that owns one stack of holes, given the speaking
- * hole of the whole instrument.
- *
- * Three of the wind models are the same instrument written out three times: a
- * row of stations up a tube, split into an upper stack the left hand owns and a
- * lower one the right owns, everything at or above the speaking hole closed and
- * everything below it open toward the bell. A saxophone, a clarinet and a flute
- * differ in how many stations there are and where the split falls, and in
- * nothing else that a finger can see — so the rule is written once and the three
- * models pass their own numbers to it.
- *
- * `lo`..`hi` are that hand's own stations. The **index finger takes the top of
- * the stack**, middle and ring the two below it, and that is the anatomy on all
- * three: the finger nearest the mouthpiece is the index, on the sax's B, the
- * clarinet's B and the flute's first key alike. Whatever is left over goes to
- * the little finger as a fraction, because whatever is left over *is* the
- * pinky's — the table of low keys under a saxophone's right hand, the levers
- * under a clarinet's, the foot keys under a flute's — and a pinky rolling onto
- * them across three stations reads better than one snapping.
- *
- * What it deliberately does not do is follow the hand's own contact. The models
- * walk a palm down the tube as the line falls, which is a lie they tell on
- * purpose — see the fingering note at the top of `saxophone.ts` — and it is a
- * lie about *position*. The fingers stay anchored to the keys, where a real
- * player's are. Anchoring them to the contact instead collapses the whole
- * pattern: a hand pinned to the speaking hole has, by construction, exactly one
- * finger on it and nothing else to say, on every note of the number.
- */
-export function fingersOnStack(lo: number, hi: number, speaking: number): FingerCurl {
-  const closed = (k: number): number => (Math.max(k, lo) >= speaking ? 1 : 0);
-  let sum = 0;
-  let n = 0;
-  for (let k = lo; k <= hi - 3; k++) { sum += closed(k); n++; }
-  return [closed(hi), closed(hi - 1), closed(hi - 2), n > 0 ? sum / n : closed(lo)];
 }

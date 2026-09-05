@@ -4,79 +4,16 @@
  * Saxophone — one model, four horns.
  *
  * `opts.scale` snaps to a family member (soprano, alto, tenor, baritone) and
- * everything else follows from it: how long the body is, how low it hangs, how
- * wide the bell opens, and — the part that matters musically — how the horn
- * transposes. A tenor sounds a major ninth below what it reads; a baritone an
- * octave and a major sixth. The *fingering* is identical across all four,
- * which is the whole reason one saxophonist can pick up any of them, and it is
- * why one model at four sizes is the right shape for this file rather than a
- * compromise.
+ * sets the tube length, the bell and the transposition; the fingering is the
+ * same on all four. The horn hangs on the player's right (`SIDE.right` is
+ * local −x) with the keywork on the tube's +z face toward the house and only
+ * the thumbs behind it.
  *
- * ## Silhouette
+ * ## Hands
  *
- * The curved bell and the neck crook. Nothing else about a saxophone reads at
- * stage distance — not the keywork, not the engraving — and a straight tube
- * with a flare on the end is a clarinet with ambitions. The soprano keeps the
- * curve here even though a real one is usually straight: curved sopranos exist,
- * and the alternative is a wind section where two players hold the same object.
- *
- * ## Fingering
- *
- * A saxophone shortens its air column from the bottom up: everything is closed
- * for the lowest note, and each semitone above opens one more hole from the
- * bell end. Twelve stations cover an octave, and the octave key repeats them.
- * That is the *simple-system* truth rather than the Boehm-derived truth — a
- * real sax has cross-fingerings and side keys — and it is the right lie at
- * this distance, because "the hand walks down the tube as the line falls" is
- * what an audience reads as playing, and a Boehm fingering chart would read as
- * flicker.
- *
- * ## Two stacks, two hands
- *
- * The twelve stations are not one row a single hand runs along: the top six
- * belong to the **left** hand and the bottom six to the **right**, and neither
- * hand ever crosses into the other's. That is why a saxophonist's hands look
- * like they are doing different jobs. `resolve` answers per `effector`
- * accordingly, and clamps the hand that is not on the speaking hole to the end
- * of its own stack, which is where those fingers actually sit — hovering over
- * their own keys, not following the other hand down the horn.
- *
- * Before this, `resolve` ignored `effector` and returned one contact, so both
- * hands were sent to the same key and the runtime nudged them 5 cm apart. Two
- * hands in one place, palms in the same direction, is what "a cluster of loose
- * fingers hanging off the instrument" looks like from the stalls.
- *
- * ## And the fingers themselves
- *
- * The twelve pads reconfigure on every note and the hands used to sit above them
- * in one frozen shape all night, which is the other half of the same complaint:
- * a saxophone that is visibly being fingered by nobody. `Contact.fingers`
- * carries the pattern out to the player — the same `station` `react` closes the
- * pads from, so the pads and the fingers cannot disagree — and `fingersOnStack`
- * shares it out over one hand's four. See both for the reasoning; what is here
- * is a table per hand and one extra argument to `copy`.
- *
- * ## Which side it hangs on
- *
- * `SIDE.right === −1` in `performer-look.ts`, so the player's right is local
- * −x. A sax hangs off the strap on the player's *right*, with the neck
- * crossing back to the centre so the mouthpiece is at the middle of the mouth.
- * The horn was previously built on +x, which put the whole instrument on the
- * wrong side of the body and the mouthpiece 6 cm past the corner of the lips.
- *
- * ## Which face the keys are on
- *
- * The rod, the twelve key cups and both hands live on the tube's **+z** face,
- * which is the one pointed at the house; the thumb rest, the strap ring and
- * the octave lever live on −z, against the player. That is the way round a
- * saxophone is. The thumbs are the only things behind the horn — the right
- * under its hook, the left on the octave touch — and the fingers curl round to
- * the far side of the tube, which is why a saxophonist's knuckles are the part
- * aimed at the audience.
- *
- * Every one of them was on −z, tucked between the tube and the chest. From the
- * stalls that is a bare gold pipe with no keywork on it at all and two hands
- * hidden behind it, which is what this file was reported as looking like.
+ * Each hand has one contact, the pearl under its index finger, and never moves
+ * along the tube. The note is `Contact.fingers`, read off the same chart that
+ * closes the pads, so the fingers and the keywork cannot disagree.
  */
 
 import {
@@ -92,7 +29,7 @@ import { BLOWN_MOUTH_Y, mouthFor } from './mouth.js';
 import type {
   Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo, fingersOnStack } from './types.js';
+import { addTo, indexToCentre } from './types.js';
 
 // ---------------------------------------------------------------------------
 // The family
@@ -121,46 +58,84 @@ function memberFor(scale: number | undefined): Member {
   return best;
 }
 
-/** Written Bb3 — the bottom of every saxophone, all holes closed. */
-const WRITTEN_FLOOR = 58;
-/** Stations round the tube before the octave key takes over. */
-const STATIONS = 12;
+// ---------------------------------------------------------------------------
+// Fingering
+// ---------------------------------------------------------------------------
 
-function mod(a: number, n: number): number {
-  return ((a % n) + n) % n;
+/** Touches beyond the six pearls: the pinky tables, the palm keys. */
+type Key = 'g#' | 'eb' | 'c' | 'c#' | 'b' | 'bb' | 'palm-d' | 'palm-eb' | 'palm-f' | 'side';
+
+interface Row {
+  /** Left hand, index to little, 1 pressed. */
+  l: FingerCurl;
+  /** Right hand, index to little. */
+  r: FingerCurl;
+  keys?: readonly Key[];
 }
 
 export interface Fingering {
-  /** 0 (everything closed, lowest note) .. 11 (only the top hole closed). */
-  station: number;
-  /** 0 for the bottom register, 1 with the octave key, 2+ altissimo. */
-  register: number;
+  left: FingerCurl;
+  right: FingerCurl;
+  /** The octave key, under the left thumb. */
+  octave: boolean;
+  keys: readonly Key[];
 }
 
-/**
- * The fingering for a sounding pitch on a given member of the family.
- *
- * Note what does *not* happen here: nothing is clamped. A pitch below the
- * horn's own bottom still lands on a station, because the pattern repeats and
- * a hand has to go somewhere sensible. Whether the part should have been
- * written there at all is a casting question, and `npm run concert` already
- * asserts a rate on it — the geometry is the wrong place to raise it.
- */
+const NONE: readonly Key[] = [];
+
+/** Written D up to C#, a row a semitone. The same twelve repeat with the octave key. */
+const MAIN: readonly Row[] = [
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 0] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 0, 0] },
+  { l: [1, 1, 1, 0], r: [1, 0, 0, 0] },
+  { l: [1, 1, 1, 0], r: [0, 1, 0, 0] },
+  { l: [1, 1, 1, 0], r: [0, 0, 0, 0] },
+  { l: [1, 1, 1, 1], r: [0, 0, 0, 0], keys: ['g#'] },
+  { l: [1, 1, 0, 0], r: [0, 0, 0, 0] },
+  { l: [1, 0, 0, 0], r: [1, 0, 0, 0] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 0] },
+  { l: [0, 1, 0, 0], r: [0, 0, 0, 0] },
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 0] },
+];
+
+/** Written Bb3 up to C#4, below the stacks: everything down plus a pinky table. */
+const LOW: readonly Row[] = [
+  { l: [1, 1, 1, 1], r: [1, 1, 1, 1], keys: ['bb'] },
+  { l: [1, 1, 1, 1], r: [1, 1, 1, 1], keys: ['b'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['c'] },
+  { l: [1, 1, 1, 1], r: [1, 1, 1, 0], keys: ['c#'] },
+];
+
+/** Written D6 up to F#6: the left palm keys, and from E the right hand on its side keys, off the pearls. */
+const PALM: readonly Row[] = [
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 0], keys: ['palm-d'] },
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 0], keys: ['palm-d', 'palm-eb'] },
+  { l: [0, 0, 0, 0], r: [1, 0, 0, 0], keys: ['palm-d', 'palm-eb', 'side'] },
+  { l: [0, 0, 0, 0], r: [1, 0, 0, 0], keys: ['palm-d', 'palm-eb', 'palm-f', 'side'] },
+  { l: [0, 0, 0, 0], r: [1, 0, 1, 0], keys: ['palm-d', 'palm-eb', 'palm-f', 'side'] },
+];
+
+/** Written Bb3, the bottom of every saxophone. */
+const WRITTEN_FLOOR = 58;
+
+/** The fingering for a sounding pitch. Total: below the horn is all down, above it repeats. */
 export function fingeringFor(midi: number, member: Member): Fingering {
-  const written = midi + member.transpose;
-  return {
-    station: mod(written - WRITTEN_FLOOR, STATIONS),
-    register: Math.floor((written - WRITTEN_FLOOR) / STATIONS),
-  };
+  const n = midi + member.transpose - WRITTEN_FLOOR;
+  if (n < LOW.length) {
+    const row = LOW[Math.max(n, 0)]!;
+    return { left: row.l, right: row.r, octave: false, keys: row.keys ?? NONE };
+  }
+  const m = n - LOW.length;
+  const pc = m % 12;
+  const register = Math.floor(m / 12);
+  const row = register >= 2 && pc < PALM.length ? PALM[pc]! : MAIN[pc]!;
+  return { left: row.l, right: row.r, octave: register > 0, keys: row.keys ?? NONE };
 }
 
 /**
- * How far the model will answer.
- *
- * The union of `RANGE_OF`'s four saxophone entries, which is wider than
- * `ARCHETYPES.saxophone.range` at *both* ends — a low-A baritone reaches 37 and
- * an alto's altissimo reaches 89. Honouring only the archetype range would
- * leave real notes unresolved.
+ * How far the model will answer: the union of `RANGE_OF`'s four saxophone
+ * entries, which is wider than `ARCHETYPES.saxophone.range` at both ends.
  */
 const LO = 37;
 const HI = 89;
@@ -194,79 +169,23 @@ function release(): void {
 // ---------------------------------------------------------------------------
 
 const SPEC = ARCHETYPES.saxophone;
-/**
- * Where the lips close on the mouthpiece, in the model's own frame.
- *
- * Only the z is a constant. The *height* is this player's mouth, from
- * `mouthFor`, because a saxophone hangs from a strap and the strap's only job
- * is to put the mouthpiece at the face — so the whole horn moves with the
- * player and nothing about its own proportions changes.
- *
- * `SPEC.workHeight` (1.2) is not that height and never was: it is where a sax's
- * *keywork* sits, which is most of a body-tube below the lips. It is still the
- * right fallback for a caller with no performer, because `mouthFor` only uses
- * it when nobody knows better — and see the note on `bowY` for what having a
- * real height finally makes expressible.
- */
+/** Where the lips close on the mouthpiece; the height is this player's mouth. */
 const LIP_Z = -0.02;
 /** Mouthpiece length, tip to cork. The beak points *back*, into the player. */
 const MP_LEN = 0.068;
 /** How far past the lips the tip pokes; the rest of the beak is in the mouth. */
 const MP_BITE = 0.020;
-/**
- * Body tube lean: bell end forward, top end back toward the player.
- *
- * This was −0.30, and it is the reason the horn was reported as overlapping
- * the body. A 0.54 m tube raked 17° carries its top 159 mm upstage of its
- * base, and the base was only 15 mm in front of the lip point to start with —
- * so the top of the tube finished on the player's own centreline. Measured
- * against the torso shell: the tube's axis was inside it from a third of the
- * way up, by as much as 142 mm; every key cup from `pad-8` upward was 130 to
- * 226 mm inside; and both hands, which sit *behind* the tube because the keys
- * face the player, were 58 and 156 mm inside the chest.
- *
- * −0.10 is close to what a saxophone actually does — the tube is near vertical
- * and the bell's own 0.55 rad is what makes the silhouette — and it leaves the
- * top of the tube 54 mm behind its base instead of 159. See `BODY_Z` for the
- * other half; neither is enough alone.
- *
- * (Both of those measurements were taken back when the hands sat behind the
- * tube. They now sit in front of it — see the note on which face the keys are
- * on — so the clearance is better than the numbers here say, not worse.)
- */
+/** Body tube lean: bell end forward, top end back toward the player. */
 const BODY_TILT_X = -0.10;
 /**
- * How far in front of the lip point the bottom of the body tube sits.
- *
- * Not `station.offset`, which is the obvious knob and the wrong one: it moves
- * the *whole* model, mouthpiece included, and the mouthpiece is the one part
- * that is already in the right place. The body group is the correct pivot
- * because `bodyMatrix` is taken from it — the key cups, the rod, the thumb
- * rest, the octave key, the bow, the bell and every `resolve` contact are all
- * expressed in that frame, so they move together and `resolve` stays honest.
- * The mouthpiece, the ligature and the neck's far end are pinned to `mouth`
- * and do not move at all; the neck curve simply reaches further, which is what
- * a real crook does.
- *
- * It was 0.015. 0.140 puts the tube's axis 210 to 285 mm in front of the body
- * axis over the keyed length, which is about the daylight a pair of hands needs
- * between the keywork and the shirt. Measured across the four members with the
- * hands still behind the tube, the worst contact cleared the chest by 83–96 mm
- * on the right and 15–54 mm on the left; the left was tightest at the top of
- * the upper stack on a baritone, which is a saxophonist's knuckles brushing
- * their own chest and is where the number stopped being worth chasing.
- *
- * The hands have since moved to the far side of the tube, which buys another
- * 50 to 90 mm and makes the tightest case comfortable. The value stays where it
- * is because the *tube* still has to stand off the chest on its own account,
- * and because more only floats the horn off the player.
+ * How far in front of the lip point the bottom of the body tube sits. The
+ * mouthpiece stays pinned at the lips and the neck reaches, as a real crook does.
  */
 const BODY_Z = 0.140;
-/** Negative leans the top of the tube toward +x, i.e. from the right hip in
- * toward the centreline, which is the only way the neck reaches the mouth. */
+/** Negative leans the top of the tube toward +x, in from the right hip to the mouth. */
 const BODY_TILT_Z = -0.09;
-/** Stations 0..5 are the right hand's, 6..11 the left's. */
-const STACK_SPLIT = 6;
+/** How far a pad swings off its hole, radians about its hinge. Shallow, on a long arm, so the cup lifts more than it tilts. */
+const LIFT = 0.20;
 
 function flareProfile(len: number, r0: number, r1: number, steps: number): Vector2[] {
   const pts: Vector2[] = [];
@@ -277,14 +196,26 @@ function flareProfile(len: number, r0: number, r1: number, steps: number): Vecto
   return pts;
 }
 
+interface Pad {
+  name: string;
+  /** Height up the body tube from the bow, metres. */
+  y: number;
+  /** Across the tube from the pearls' line; positive toward the player's left. */
+  x: number;
+  small?: boolean;
+  /** 1 on its hole, 0 lifted. Closed-standing pads answer 1 until their key is pressed. */
+  closed(f: Fingering): number;
+}
+
+interface Hinge {
+  group: Group;
+  /** Sign of the rotation that lifts this cup off the tube. */
+  sign: number;
+  closed(f: Fingering): number;
+}
+
 export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
-  /**
-   * This player's lips. The strap length is whatever puts the horn there.
-   *
-   * `BLOWN_MOUTH_Y`, not `SPEC.workHeight`, for the reason the note on `LIP_Z`
-   * gives: this archetype's declared 1.2 is its keywork.
-   */
   const mouth = mouthFor(opts, BLOWN_MOUTH_Y);
   const member = memberFor(opts.scale);
   const s = member.at;
@@ -297,22 +228,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const bowR = 0.045 + 0.030 * s;
   const bellR = 0.032 + 0.048 * s;
   const bellLen = 0.15 + 0.15 * s;
-  /**
-   * How low the horn hangs: a whole horn below the lips.
-   *
-   * A tenor measures about 0.75 m from the bottom of the bow to the top of the
-   * mouthpiece in playing position, and the strap length is the only free
-   * variable that sets it — the mouthpiece is pinned at the lips and the bow
-   * is one body-tube below.
-   *
-   * Measuring **down from the mouth** rather than up from the boards is what
-   * makes `ARCHETYPES.saxophone.workHeight` stop being a lie. One constant
-   * cannot describe four horns on players of four heights: a baritone's keys
-   * sit 15 cm below an alto's, and both sit higher on a tall player. Expressed
-   * this way the keywork height falls out of `height` and `scale` together and
-   * the archetype's 1.2 is simply what this produces for an alto on an average
-   * player, which is all a single number was ever able to mean.
-   */
+  /** A whole horn below the lips; the strap length is whatever puts it there. */
   const bowY = mouth.y - (0.53 + 0.28 * s);
   const key = member.name;
   /** Which side of the player the horn hangs on: their right, which is −x. */
@@ -322,25 +238,15 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   const matBody = shared(`body:${lacquer}`, () => new MeshStandardMaterial({
     color: lacquer, roughness: 0.34, metalness: 0.85,
   }));
-  const matKeys = shared('keys', () => new MeshStandardMaterial({
-    color: '#d9dde2', roughness: 0.2, metalness: 0.94,
+  /** The keywork wears the body's lacquer, as most saxophones' does; silver cups flash white when they tilt. */
+  const matKeys = matBody;
+  const matSilver = shared('silver', () => new MeshStandardMaterial({
+    color: '#d9dde2', roughness: 0.3, metalness: 0.9,
   }));
   const matDark = shared('dark', () => new MeshStandardMaterial({
     color: '#1b1a18', roughness: 0.62, metalness: 0.06,
   }));
-  /**
-   * The same lacquer, drawn on both faces. For the bell and nothing else.
-   *
-   * A `LatheGeometry` is open at both ends, so the flare is a one-sided cone;
-   * under the default `FrontSide` its inside is culled and you look through
-   * the bell at the stage behind it. A saxophone's bell is turned up and out
-   * toward the house, which is precisely the angle that shows the inside of it
-   * to the audience, so this is the one on the stage you cannot miss.
-   *
-   * The body tube, the bow and the keywork are capped solids and stay
-   * single-sided; there is nothing to see inside them and a second face on
-   * every pad is a real cost in the shadow map.
-   */
+  /** Both faces, for the bell alone: its flare shows its inside to the house. */
   const matBore = shared(`bore:${lacquer}`, () => new MeshStandardMaterial({
     color: lacquer, roughness: 0.34, metalness: 0.85, side: DoubleSide,
   }));
@@ -354,21 +260,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
     return g;
   });
   const geoBell = shared(`bell:${key}`, () => new LatheGeometry(flareProfile(bellLen, rBot, bellR, 8), 16));
-  /**
-   * The bead round the bell's mouth, turned onto the bell's axis **here**.
-   *
-   * A `TorusGeometry` is built round z. This bell is lathed about `+y` and
-   * left there — unlike the trumpet's and the trombone's, which are turned
-   * onto z — so the ring genuinely does need a quarter turn about x to lie
-   * flat in x-z, and this is it.
-   *
-   * There was a second, opposite `-Math.PI / 2` on the *mesh*, which cancelled
-   * this one and stood the ring up through the mouth of the flare instead of
-   * round it: measured on a tenor, a 133 × 133 × 10 mm ring cutting edge-on
-   * across a 122 mm circular opening. Two rotations that undo each other are
-   * how a misaligned rim survives being looked at in the source, so the
-   * remaining one lives on the geometry where the bell's own axis is decided.
-   */
+  /** The bead round the bell's mouth, turned onto the bell's +y axis here. */
   const geoBellRim = shared(`bellrim:${key}`, () => new TorusGeometry(bellR, 0.0055, 5, 20).rotateX(Math.PI / 2));
   const geoCup = shared(`cup:${key}`, () => new CylinderGeometry(0.013 + 0.006 * s, 0.013 + 0.006 * s, 0.005, 8));
   const geoRod = shared(`rod:${key}`, () => new CylinderGeometry(0.0035, 0.0035, bodyLen * 0.8, 6));
@@ -397,6 +289,8 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   tube.castShadow = true;
   tube.receiveShadow = true;
 
+  /** Every body pad hinges on a long arm from the horn's own side of the tube. */
+  const rodX = SIDE * (0.036 + 0.008 * s);
   const rod = addTo(body, new Mesh(geoRod, matKeys));
   rod.name = 'rod';
   rod.position.set(SIDE * (0.021 + 0.008 * s), bodyLen * 0.5, rTop * 0.4);
@@ -414,26 +308,16 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   bell.name = 'bell';
   bell.castShadow = true;
   bell.receiveShadow = true;
-  // No rotation on the mesh: `geoBellRim` is already turned onto the bell's
-  // axis, and the `-Math.PI / 2` that used to be here undid it. See there.
   const bellRim = addTo(bellGroup, new Mesh(geoBellRim, matBody));
   bellRim.name = 'bell-rim';
   bellRim.position.y = bellLen;
 
   /** The strap hook, on the back of the tube where the strap can reach it. */
-  const strapRing = addTo(body, new Mesh(geoRing, matKeys));
+  const strapRing = addTo(body, new Mesh(geoRing, matSilver));
   strapRing.position.set(0, bodyLen * 0.66, -(rTop + 0.008));
   strapRing.rotation.x = Math.PI / 2;
 
-  /**
-   * The neck crook, from the top of the body across and back to the lips.
-   *
-   * It ends at the mouthpiece's **cork**, not at the lips — the beak is a
-   * separate 68 mm and it points back into the player's mouth. Ending the
-   * curve at the lip point and then growing the mouthpiece forward from there,
-   * which is what this did, aims the beak at the audience and leaves the cork
-   * between the player's teeth.
-   */
+  /** The neck crook, from the top of the body across and back to the cork. */
   const corkZ = LIP_Z + MP_LEN - MP_BITE;
   const bodyTop = new Vector3(0, bodyLen, 0).applyMatrix4(bodyMatrix);
   const neckCurve = new CatmullRomCurve3([
@@ -453,16 +337,12 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   mouthpiece.position.set(0, mouth.y, corkZ);
   // −π/2 lays the lathe along −z, so the tip ends up in the player's mouth.
   mouthpiece.rotation.x = -Math.PI / 2 - 0.25;
-  const ligature = addTo(root, new Mesh(geoLigature, matKeys));
+  const ligature = addTo(root, new Mesh(geoLigature, matSilver));
   ligature.name = 'ligature';
   ligature.position.set(0, mouth.y - 0.004, corkZ - 0.014);
   ligature.rotation.x = 0.25;
 
-  /**
-   * The octave key and the thumb hook: the two things a saxophone puts on the
-   * side of the tube facing the player, because thumbs are the only fingers
-   * that stay behind the horn. Everything else is round the front.
-   */
+  /** The octave key and the thumb hook, on the face of the tube toward the player. */
   const octave = addTo(body, new Group());
   octave.position.set(0, bodyLen * 0.94, -(rTop + 0.006));
   addTo(octave, new Mesh(geoOctave, matKeys)).name = 'octave-key';
@@ -470,143 +350,106 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   thumb.name = 'thumb-rest';
   thumb.position.set(0, bodyLen * 0.5, -(rTop + 0.006));
 
+  // --- keywork -----------------------------------------------------------
   /**
-   * One key cup per station, laid up the tube from the bow to the neck.
-   *
-   * Each one is its own group hinged on the rod, so `react` can lift the open
-   * ones and drop the closed ones. Twelve pads reconfiguring on every note is
-   * the whole visual payoff of a wind instrument at this distance.
+   * Pearl spacing within a stack, and where each stack's outer pearl sits. The
+   * spacing is capped at this player's own knuckle spacing, so a short player
+   * on a baritone still has a finger on every pearl.
    */
-  const HOLE_T: readonly number[] = Array.from(
-    { length: STATIONS }, (_, i) => 0.08 + (i / (STATIONS - 1)) * 0.84,
-  );
-  const cups: Group[] = [];
-  for (const [i, t] of HOLE_T.entries()) {
-    const r = rBot + (rTop - rBot) * t;
+  const pearl = Math.min(0.026 + 0.014 * s, indexToCentre(opts.height) / 1.5);
+  const yF = bodyLen * 0.40;
+  const yG = bodyLen * 0.56;
+  const rAt = (y: number): number => rBot + (rTop - rBot) * (y / bodyLen);
+  const has = (f: Fingering, k: Key): boolean => f.keys.includes(k);
+  const on = (b: boolean): number => (b ? 1 : 0);
+  const either = (a: number, b: number): number => Math.max(a, b);
+  /** A right finger on a pearl; on the side keys the whole hand is off the stack. */
+  const rh = (f: Fingering, i: number): number => (has(f, 'side') ? 0 : f.right[i]!);
+
+  /**
+   * The pads on the body, bow end first. The pinky tables sit to the player's
+   * left, the right pinky's spatulas to their right, and the C# spatula closes
+   * low C while it opens its own pad, which is what the table does.
+   */
+  const PADS: readonly Pad[] = [
+    { name: 'low-c', y: bodyLen * 0.05, x: SIDE * 0.004,
+      closed: (f) => on(has(f, 'bb') || has(f, 'b') || has(f, 'c') || has(f, 'c#')) },
+    { name: 'low-c#', y: bodyLen * 0.10, x: -SIDE * 0.010, closed: (f) => on(!has(f, 'c#')) },
+    { name: 'eb', y: yF - 2.6 * pearl, x: SIDE * 0.010, small: true, closed: (f) => on(!has(f, 'eb')) },
+    { name: 'd', y: yF - 2 * pearl, x: 0, closed: (f) => rh(f, 2) },
+    { name: 'e', y: yF - pearl, x: 0, closed: (f) => rh(f, 1) },
+    { name: 'f', y: yF, x: 0, closed: (f) => rh(f, 0) },
+    { name: 'f#', y: yF + 0.55 * pearl, x: 0, small: true, closed: (f) => either(rh(f, 0), rh(f, 1)) },
+    { name: 'g#', y: yG - 0.6 * pearl, x: -SIDE * 0.012, small: true, closed: (f) => on(!has(f, 'g#')) },
+    { name: 'g', y: yG, x: 0, closed: (f) => f.left[2] },
+    { name: 'a', y: yG + pearl, x: 0, closed: (f) => f.left[1] },
+    { name: 'bis', y: yG + 1.5 * pearl, x: 0, small: true, closed: (f) => either(f.left[1], rh(f, 0)) },
+    { name: 'b', y: yG + 2 * pearl, x: 0, closed: (f) => f.left[0] },
+    { name: 'c#', y: yG + 2.9 * pearl, x: 0, small: true, closed: (f) => either(f.left[0], f.left[1]) },
+    { name: 'palm-d', y: yG + 3.6 * pearl, x: -SIDE * 0.012, small: true, closed: (f) => on(!has(f, 'palm-d')) },
+    { name: 'palm-eb', y: yG + 4.2 * pearl, x: -SIDE * 0.012, small: true, closed: (f) => on(!has(f, 'palm-eb')) },
+    { name: 'palm-f', y: yG + 4.8 * pearl, x: -SIDE * 0.012, small: true, closed: (f) => on(!has(f, 'palm-f')) },
+  ];
+
+  const hinges: Hinge[] = [];
+  for (const pad of PADS) {
+    const r = rAt(pad.y);
     const hinge = addTo(body, new Group());
-    hinge.position.set(SIDE * (0.018 + 0.008 * s), t * bodyLen, r * 0.5);
+    hinge.position.set(rodX + pad.x, pad.y, r * 0.5);
     const cup = addTo(hinge, new Mesh(geoCup, matKeys));
-    cup.name = `pad-${i}`;
-    cup.position.set(-SIDE * (0.018 + 0.008 * s), 0, r * 0.5 + 0.006);
+    cup.name = `pad-${pad.name}`;
+    cup.position.set(-rodX, 0, r * 0.5 + 0.006);
     cup.rotation.x = Math.PI / 2;
-    cups.push(hinge);
+    if (pad.small) cup.scale.set(0.62, 1, 0.62);
+    hinges.push({ group: hinge, sign: SIDE, closed: pad.closed });
+  }
+
+  /** Low B and Bb, on the bell, turned to face between the house and the player's left. */
+  const bellKeys = addTo(bellGroup, new Group());
+  bellKeys.rotation.y = SIDE * Math.PI / 4;
+  const BELL_PADS: readonly { name: string; at: number; closed(f: Fingering): number }[] = [
+    { name: 'low-b', at: 0.35, closed: (f) => on(has(f, 'b') || has(f, 'bb')) },
+    { name: 'low-bb', at: 0.60, closed: (f) => on(has(f, 'bb')) },
+  ];
+  for (const pad of BELL_PADS) {
+    const r = rBot + (bellR - rBot) * pad.at ** 2.4;
+    const hinge = addTo(bellKeys, new Group());
+    hinge.position.set(-SIDE * (r + 0.006), pad.at * bellLen, -0.02);
+    const cup = addTo(hinge, new Mesh(geoCup, matKeys));
+    cup.name = `pad-${pad.name}`;
+    cup.position.set(0, 0, 0.02);
+    cup.rotation.z = Math.PI / 2;
+    hinges.push({ group: hinge, sign: -SIDE, closed: pad.closed });
   }
 
   // --- contacts ----------------------------------------------------------
   /**
-   * The finger target for a station is the *lowest closed* hole — the last
-   * finger still down. Walking that up the tube as the line rises is exactly
-   * the motion an audience reads as playing a wind instrument.
+   * From a cup's centre, out toward the house, to an unpressed index pad: the
+   * cup's half depth, the flesh of the pad, and the press travel still to come.
    */
-  /**
-   * `side` backs a palm off toward its own end of the horn, and round to its
-   * own side of it.
-   *
-   * A contact is where the **hand** goes, not where the fingertip goes. The
-   * stations are about 40 mm apart on a tenor and a hand is 80 mm across, so
-   * two palms on stations either side of the split overlap: measured at 28 mm
-   * on a soprano before this existed. Half a hand each way is also simply
-   * truer — the finger doing the work is at the end of the hand, not in the
-   * middle of it.
-   *
-   * ## Both stacks face the house, and the hands arrive from both sides
-   *
-   * The rig builds a hand from `normal` and `along`, and the fingers come out
-   * along `along × normal`. Handing both hands the same `along` therefore aims
-   * both sets of fingers the same way round the tube, which puts both wrists on
-   * the same side of the horn — on a saxophone, both of them out to the
-   * player's left, with the right arm crossing in front of the keywork to get
-   * there. Mirroring the axis is the whole fix: the left hand's fingers reach
-   * right across the upper stack and the right hand's reach left across the
-   * lower one, so each wrist stays on its own side. The knuckles still run the
-   * length of the tube either way, which is what the keys need.
-   *
-   * The axis is `−side`, not `side`, and that sign is not free: the whole
-   * keywork moved to the tube's far face, `normal` reversed with it, and a
-   * cross product reverses when either input does. Leaving `along` alone would
-   * have swapped the two hands round the horn again by a different route.
-   *
-   * `side` is `+1` for the left hand and `−1` for the right — `SIDE.right` is
-   * local −x, as the note on which side the horn hangs already says.
-   */
-  const HAND = 0.032;
-  /** How far round the tube from its centreline each wrist sits. */
-  const WRAP = 0.013;
+  const KEY_OFF = 0.013;
 
   /**
-   * How far in front of the bore a fingertip goes: onto the pad, not over it.
-   *
-   * A cup is centred at `r + 0.006` and is 5 mm deep, so its front face is at
-   * `r + 0.0085`. `keys` is a `touch: 1` pose and the contact is therefore the
-   * pad of the index finger rather than the palm, so `r + 0.016` held every
-   * finger 7.5 mm off the key it was pressing — an instrument being fingered
-   * from just above.
+   * One contact per hand, placed so the index pad lands on the top pearl of its
+   * stack and the other fingers fall down the tube at the rig's spacing. The
+   * back of the hand faces out to its own side and a little forward, so the
+   * fingers come round the tube onto the pearls and a knuckle flex pushes them
+   * toward the player, into the keys; `along` is mirrored per hand so each
+   * wrist stays on its own side of the horn with the knuckles running down it.
    */
-  const KEY_Z = 0.011;
-
-  function contactAt(station: number, side: number): Contact {
-    const t = HOLE_T[station]!;
-    const r = rBot + (rTop - rBot) * t;
+  function contactAt(y: number, side: number): Contact {
+    const normal = new Vector3(side, 0, 0.5).normalize();
     return {
-      position: new Vector3(side * WRAP, t * bodyLen + side * HAND, r + KEY_Z)
-        .applyMatrix4(bodyMatrix),
-      // The keys are on the far face of the tube, so a hand reaches round it
-      // and comes at them from downstage, from whichever side its own arm is
-      // on. `normal` is away from the instrument, hence +z.
-      normal: new Vector3(side * 0.38, 0.1, 1).normalize().transformDirection(bodyMatrix),
-      // Down the tube, mirrored per hand. See above for the sign.
+      position: new Vector3(0, y, rAt(y) + 0.006 + KEY_OFF).applyMatrix4(bodyMatrix),
+      normal: normal.transformDirection(bodyMatrix),
       along: new Vector3(0, -side, 0).transformDirection(bodyMatrix),
     };
   }
-  const rightContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, -1));
-  const leftContacts: Contact[] = HOLE_T.map((_, i) => contactAt(i, 1));
-
-  /**
-   * Which of each hand's fingers are down, per speaking hole. See
-   * `Contact.fingers`, and `fingersOnStack` for why the index takes the top of
-   * the stack.
-   *
-   * Keyed by the **speaking** station and not by the contact's, which is the
-   * whole reason this is a second table rather than a field of `contactAt`.
-   * `stationFor` clamps a hand to its own six keys, so the right hand sits at
-   * station 5 both for the F it is playing and for every note above it that
-   * belongs to the left hand — one position, two completely different hands.
-   * Keyed off the clamped station those would be the same four numbers, and a
-   * saxophonist would keep three fingers down through the whole of the upper
-   * register, which is the one part of a saxophone an audience can actually
-   * check: on a high note the right hand comes off the horn.
-   */
-  const rightFingers = HOLE_T.map((_, s) => fingersOnStack(0, STACK_SPLIT - 1, s));
-  const leftFingers = HOLE_T.map((_, s) => fingersOnStack(STACK_SPLIT, STATIONS - 1, s));
-
-  /**
-   * Which contact each hand takes for a given speaking hole.
-   *
-   * The hand that owns the hole is on it; the other sits at the end of its own
-   * stack nearest the action — the left hand's little finger hovering over the
-   * bottom of the upper stack, the right hand's index over the top of the
-   * lower one. Neither hand ever leaves its six keys, which is the thing that
-   * makes the two of them read as doing different work.
-   */
-  function stationFor(station: number, right: boolean): number {
-    return right
-      ? Math.min(station, STACK_SPLIT - 1)
-      : Math.max(station, STACK_SPLIT);
-  }
-
-  /** Hands at rest sit over their own stacks, mid-horn. */
-  const restRight = rightContacts[STACK_SPLIT - 2]!;
-  const restLeft = leftContacts[STACK_SPLIT + 2]!;
+  const centre = indexToCentre(opts.height);
+  const leftContact = contactAt(yG + 2 * pearl - centre, 1);
+  const rightContact = contactAt(yF - centre, -1);
 
   function copy(c: Contact, fingers?: FingerCurl): Contact {
-    // `along` is copied. The previous version rebuilt the contact from
-    // `position` and `normal` alone, which quietly discarded every knuckle
-    // axis this file computes — the fingers then took whatever roll the
-    // fallback produced and lay across the keys instead of down them.
-    //
-    // `fingers` is passed by reference on purpose: it is a frozen tuple off a
-    // table nothing writes to, and there is no in-place transform for a caller
-    // to perform on it the way there is on a vector.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
@@ -621,8 +464,8 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
   }
 
   // --- animation state ---------------------------------------------------
-  const closed: number[] = new Array<number>(STATIONS).fill(1);
-  const closedTo: number[] = new Array<number>(STATIONS).fill(1);
+  const closed: number[] = hinges.map(() => 1);
+  const closedTo: number[] = hinges.map(() => 1);
   let octaveAt = 0;
   let octaveTo = 0;
   let flare = 0;
@@ -634,11 +477,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
     archetype: 'saxophone',
     root,
     station: {
-      /**
-       * Straight behind the mouthpiece, which is on the model's centreline —
-       * the horn does the sidestep, not the player. The z puts the lips 0.12 m
-       * in front of the body axis, which is where the cast's mean mouth is.
-       */
+      /** Behind the mouthpiece, on the centreline: the horn does the sidestep. */
       offset: new Vector3(0, 0, LIP_Z - mouth.z),
       facing: 0,
       posture: SPEC.posture,
@@ -646,39 +485,30 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
 
     resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
       const right = isRight(effector);
-      if (point.kind === 'rest') return copy(right ? restRight : restLeft);
+      const contact = right ? rightContact : leftContact;
+      if (point.kind === 'rest') return copy(contact);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      const { station } = fingeringFor(point.midi, member);
-      const at = stationFor(station, right);
-      return copy(
-        (right ? rightContacts : leftContacts)[at]!,
-        (right ? rightFingers : leftFingers)[station]!,
-      );
+      const f = fingeringFor(point.midi, member);
+      return copy(contact, right ? f.right : f.left);
     },
 
     react(point: PlayPoint, force: number, _now: number): void {
       if (point.kind === 'rest') {
-        // Between phrases the hands stay over the keys and the octave key
-        // lets go. A wind player does not reset to a neutral pose mid-tune.
+        // Between phrases the fingers stay over the keys and the octave key lets go.
         octaveTo = 0;
         return;
       }
       if (point.kind !== 'hole') return;
       if (point.midi < LO || point.midi > HI) return;
-      const { station, register } = fingeringFor(point.midi, member);
-      // Everything from the speaking hole up is closed; everything below it,
-      // toward the bell, is open. That is the whole of how a wind works.
-      for (let i = 0; i < STATIONS; i++) closedTo[i] = i >= station ? 1 : 0;
-      octaveTo = register > 0 ? 1 : 0;
+      const f = fingeringFor(point.midi, member);
+      for (let i = 0; i < hinges.length; i++) closedTo[i] = hinges[i]!.closed(f);
+      octaveTo = f.octave ? 1 : 0;
       flare = Math.max(flare, 0.2 + 0.8 * Math.min(Math.max(force, 0), 1));
     },
 
     update(now: number): void {
-      // A non-finite beat has to stop here. `dt` would be NaN, every eased
-      // value in this method is `x += (target − x) * k`, and one NaN k turns
-      // the whole instrument into NaN transforms permanently — three.js keeps
-      // drawing it, at no position, for the rest of the show.
+      // A non-finite beat would make every eased value NaN for the rest of the show.
       if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
@@ -686,12 +516,10 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
 
       // Pads are light and fast; they snap rather than settle.
       const k = 1 - Math.exp(-dt / 0.035);
-      for (let i = 0; i < STATIONS; i++) {
+      for (let i = 0; i < hinges.length; i++) {
         closed[i] = closed[i]! + (closedTo[i]! - closed[i]!) * k;
-        // Negative, because the cup now hangs off the hinge at +z. The pad has
-        // to swing the same way it always did — up off its hole — and the sign
-        // of that rotation follows the side of the tube the keywork is on.
-        cups[i]!.rotation.x = -0.24 * (1 - closed[i]!);
+        const h = hinges[i]!;
+        h.group.rotation.y = h.sign * LIFT * (1 - closed[i]!);
       }
       octaveAt += (octaveTo - octaveAt) * k;
       octave.rotation.x = -0.5 * octaveAt;
@@ -702,9 +530,7 @@ export const buildSaxophone: InstrumentBuilder = (opts: InstrumentBuildOptions):
     },
 
     dispose(): void {
-      // A second call would free the shared buffers out from under every
-      // other one of these on the stage. That renders as nothing at all and
-      // reports nothing, so it is guarded rather than left to be noticed.
+      // A second call would free the shared buffers under every other one on the stage.
       if (disposed) return;
       disposed = true;
       root.removeFromParent();

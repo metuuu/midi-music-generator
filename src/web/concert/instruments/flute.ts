@@ -4,40 +4,18 @@
  * Flute — held sideways, which is the entire point.
  *
  * The clarinet is a dark vertical dropping from the mouth to the boards; this
- * is a bright horizontal running across the frame to the player's right. Built
- * as opposites on purpose: a wind section where the flute and the clarinet are
- * the same tube at two angles reads as a rendering shortcut, and it is the one
- * mistake in this family that is visible from the back row.
+ * is a bright horizontal running across the frame to the player's right, which
+ * is local −x (`SIDE.right`). The head turns, the left arm crosses the body,
+ * both hands hang under the tube with the fingers arching over it, and the
+ * instrument catches the light along its whole length.
  *
- * Everything else follows from the sideways hold. The player's head turns; the
- * left arm crosses the body; both hands hang *under* the tube with the fingers
- * reaching up and curling over it; and the instrument catches the light along
- * its whole length, which is why it is the one wind here worth making properly
- * silver.
+ * ## Hands
  *
- * ## Which way is out
- *
- * Out to the player's **right**, which is local −x: `SIDE.right === −1` in
- * `performer-look.ts`. The file said "right" and built the tube along +x,
- * which is the player's left — so the flute crossed the wrong shoulder, the
- * left hand ended up further from the lips than the right, and the whole
- * instrument leaned into whoever was standing on that side.
- *
- * ## Two hands, and they do not swap
- *
- * The left hand is the one nearer the lips and the right nearer the foot, on
- * every flute ever made, and neither crosses the other. `resolve` answers per
- * `effector` for exactly that reason; it used to hand both hands the same key.
- *
- * ## Fingering, and the roll
- *
- * An open pipe, so it overblows at the octave: twelve stations, and the second
- * register is the same fingerings taken with the embouchure alone. There is no
- * octave key to animate — so the register drives the thing a flautist actually
- * does instead, which is **roll the instrument out** as the line climbs. That
- * is a real technique, it is free here, and rolling about the tube's own long
- * axis moves a key by less than a millimetre, so no contact drifts under the
- * hand that has been sent to it.
+ * The left hand is nearer the lips and the right nearer the foot, each with
+ * one contact: the index finger on the first cup of its block. The note is
+ * `Contact.fingers`, from the same chart that lifts the pads. There is no
+ * octave key, so the register drives the thing a flautist actually does
+ * instead: roll the instrument out as the line climbs.
  */
 
 import {
@@ -52,32 +30,92 @@ import { mouthFor } from './mouth.js';
 import type {
   Contact, FingerCurl, InstrumentBuildOptions, InstrumentBuilder, InstrumentModel,
 } from './types.js';
-import { addTo, fingersOnStack } from './types.js';
+import { addTo, indexToCentre } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Fingering
 // ---------------------------------------------------------------------------
 
-/** B3: the bottom of a B-foot flute, everything closed. Non-transposing. */
+/** B3: the bottom of a B-foot flute. Non-transposing. */
 const FLOOR = 59;
-const STATIONS = 12;
+/** D5 is the first note that repeats the first octave with the index lifted. */
+const SECOND = 15;
+/** D6 and above: the third octave, its own cycle. */
+const THIRD_FROM = 27;
 
-function mod(a: number, n: number): number {
-  return ((a % n) + n) % n;
+/** Levers beyond the eight cups: the G# lever and the foot rollers. */
+type Key = 'g#' | 'eb' | 'c#' | 'c' | 'b';
+
+interface Row {
+  /** Left hand, index to little, 1 pressed. */
+  l: FingerCurl;
+  /** Right hand, index to little. */
+  r: FingerCurl;
+  keys?: readonly Key[];
 }
 
 export interface Fingering {
-  /** 0 (all closed, low B) .. 11 (only the top hole closed). */
-  station: number;
-  /** 0, 1 or 2 — how far the embouchure is doing the work. */
+  left: FingerCurl;
+  right: FingerCurl;
+  /** 0, 1 or 2: how far the embouchure is doing the work. */
   register: number;
+  keys: readonly Key[];
 }
 
+const NONE: readonly Key[] = [];
+
+/** B3 up to Eb5, a row a semitone; E5 to C#6 reuse E4 to C#5. The thumb key is behind. */
+const FIRST: readonly Row[] = [
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['b'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['c'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['c#'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 0] },
+  { l: [1, 1, 1, 0], r: [1, 1, 1, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 0], r: [1, 1, 0, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 0], r: [1, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 0], r: [0, 0, 1, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 1, 1, 1], r: [0, 0, 0, 1], keys: ['eb', 'g#'] },
+  { l: [1, 1, 0, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 0, 0], r: [1, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 0, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [0, 0, 0, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [0, 1, 1, 0], r: [1, 1, 1, 0] },
+  { l: [0, 1, 1, 0], r: [1, 1, 1, 1], keys: ['eb'] },
+];
+
+/** D6 up to C7. */
+const THIRD: readonly Row[] = [
+  { l: [0, 1, 1, 0], r: [1, 1, 0, 1], keys: ['eb'] },
+  { l: [0, 1, 1, 0], r: [1, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 1, 0, 0], r: [1, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 1, 0], r: [1, 0, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 1, 0], r: [0, 0, 1, 1], keys: ['eb'] },
+  { l: [0, 1, 1, 0], r: [0, 0, 0, 1], keys: ['eb'] },
+  { l: [0, 1, 1, 1], r: [0, 0, 0, 1], keys: ['eb', 'g#'] },
+  { l: [1, 0, 1, 0], r: [1, 1, 0, 1], keys: ['eb'] },
+  { l: [1, 0, 0, 0], r: [1, 1, 1, 1], keys: ['eb'] },
+  { l: [1, 1, 0, 0], r: [0, 1, 1, 1], keys: ['eb'] },
+  { l: [0, 1, 1, 0], r: [1, 1, 0, 1], keys: ['eb'] },
+];
+
+/** The fingering for a pitch. Total: below the flute is all down. */
 export function fingeringFor(midi: number): Fingering {
-  return {
-    station: mod(midi - FLOOR, STATIONS),
-    register: Math.floor((midi - FLOOR) / STATIONS),
-  };
+  const n = midi - FLOOR;
+  let row: Row;
+  let register: number;
+  if (n < FIRST.length) {
+    row = FIRST[Math.max(n, 0)]!;
+    register = n < SECOND ? 0 : 1;
+  } else if (n < THIRD_FROM) {
+    row = FIRST[n - 12]!;
+    register = 1;
+  } else {
+    row = THIRD[(n - THIRD_FROM) % THIRD.length]!;
+    register = 2;
+  }
+  return { left: row.l, right: row.r, register, keys: row.keys ?? NONE };
 }
 
 // ---------------------------------------------------------------------------
@@ -109,37 +147,48 @@ function release(): void {
 
 const SPEC = ARCHETYPES.flute;
 
-/**
- * A concert flute is 67 cm. Local +x is the **crown** end and −x the foot,
- * because −x is the player's right and that is the way a flute points.
- */
+/** A concert flute is 67 cm. Local +x is the crown end and −x the foot. */
 const HALF = 0.335;
 /** The embouchure hole sits 16.5 cm in from the crown. */
 const LIP_X = HALF - 0.165;
-/**
- * Swing of the far end toward the audience, and its droop.
- *
- * **A flute is played square across the player, not aimed at the house.** The
- * swing was 0.70 — 40°, a quarter-turn's worth — and it was there to pay for a
- * mistake in the hands rather than for anything about a flute: both palms were
- * being laid on *top* of the tube, which parks two forearms and two elbows in
- * the chest unless the whole instrument is swung out of the way first. The hands
- * hang under the tube now, where they belong, and the swing has nothing left to
- * buy. See `contactAt`.
- *
- * 0.24 is 14°, which is the few degrees of forward angle a flautist really does
- * carry — enough that the foot joint clears the right shoulder and the crown
- * stays out of the player's own cheek — and it leaves the tube reading as what
- * this file's first paragraph says it is: the one horizontal in the wind
- * section, running across the frame rather than pointing at the camera.
- */
+/** Swing of the far end toward the audience, and its droop: square across the player, nearly. */
 const SWING = 0.24;
 const DROOP = 0.14;
-/** Keys run between these x, from just past the head joint out to the foot. */
-const FIRST_KEY_X = 0.02;
-const LAST_KEY_X = -0.30;
-/** Stations 0..5 are the right hand's (the foot end), 6..11 the left's. */
-const HAND_SPLIT = 6;
+/** How far a pad swings off its hole, radians about the rod. */
+const LIFT = 0.55;
+
+interface Pad {
+  name: string;
+  /** Along the tube from the lips' frame, metres; the foot is −x. */
+  x: number;
+  small?: boolean;
+  /** 1 on its hole, 0 lifted. Closed-standing pads answer 1 until their key is pressed. */
+  closed(f: Fingering): number;
+}
+
+const has = (f: Fingering, k: Key): boolean => f.keys.includes(k);
+const on = (b: boolean): number => (b ? 1 : 0);
+const either = (a: number, b: number): number => Math.max(a, b);
+
+/**
+ * The cups, crown end first. The Bb pad closes under the A key or the F key,
+ * which is the "one and one" Bb; the G# and Eb pads stand closed; the foot
+ * rollers close in a chain down to low B.
+ */
+const PADS: readonly Pad[] = [
+  { name: 'l1', x: 0.065, closed: (f) => f.left[0] },
+  { name: 'bb', x: 0.042, small: true, closed: (f) => either(f.left[1], f.right[0]) },
+  { name: 'l2', x: 0.028, closed: (f) => f.left[1] },
+  { name: 'l3', x: -0.005, closed: (f) => f.left[2] },
+  { name: 'g#', x: -0.030, small: true, closed: (f) => on(!has(f, 'g#')) },
+  { name: 'r1', x: -0.070, closed: (f) => f.right[0] },
+  { name: 'r2', x: -0.104, closed: (f) => f.right[1] },
+  { name: 'r3', x: -0.138, closed: (f) => f.right[2] },
+  { name: 'eb', x: -0.185, closed: (f) => on(!has(f, 'eb')) },
+  { name: 'c#', x: -0.230, closed: (f) => on(has(f, 'c#') || has(f, 'c') || has(f, 'b')) },
+  { name: 'c', x: -0.265, closed: (f) => on(has(f, 'c') || has(f, 'b')) },
+  { name: 'b', x: -0.300, closed: (f) => on(has(f, 'b')) },
+];
 
 export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): InstrumentModel => {
   live++;
@@ -150,8 +199,7 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
 
   const bodyHue = opts.finish ?? (rng.chance(0.25) ? '#d8c47a' : '#dfe4ea');
   const matBody = shared(`body:${bodyHue}`, () => new MeshStandardMaterial({
-    // Polished harder than anything else in the family. On a lit stage the
-    // flute is a line of light, and that is most of what it contributes.
+    // Polished harder than anything else in the family: on a lit stage the flute is a line of light.
     color: bodyHue, roughness: 0.13, metalness: 0.97,
   }));
   const matKeys = shared('keys', () => new MeshStandardMaterial({
@@ -180,8 +228,7 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   /**
    * Flute frame: local +x runs from the crown, past the lips, out to the foot;
    * local +y is the keyed top. The whole thing swings toward the audience and
-   * droops a little, which is how one is actually held and also how it stops
-   * being a line pointing straight out of frame.
+   * droops a little, which is how one is actually held.
    */
   const flute = addTo(root, new Group());
   flute.rotation.set(0, SWING, DROOP);
@@ -189,18 +236,13 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   const lipLocal = new Vector3(LIP_X, 0, 0).applyEuler(flute.rotation);
   flute.position.set(0, mouth.y - lipLocal.y, -lipLocal.z);
 
-  /**
-   * The roll group: everything hangs off it, and it turns about the tube's own
-   * long axis. Because that axis passes through the bore, a key 14 mm out
-   * moves under a degree of roll by less than a millimetre.
-   */
+  /** The roll group turns about the tube's own axis, so a key moves under it by under a millimetre. */
   const roll = addTo(flute, new Group());
 
   flute.updateMatrix();
   const fluteMatrix = flute.matrix.clone();
 
-  // Everything is laid out from the crown at +x down to the foot at −x, so a
-  // joint's position is the crown minus how far along the tube it sits.
+  // Everything is laid out from the crown at +x down to the foot at −x.
   const head = addTo(roll, new Mesh(geoHead, matBody));
   head.name = 'head-joint';
   head.position.x = HALF - 0.110;
@@ -239,122 +281,42 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     rod.position.set(HALF - x - 0.15, 0.0138, -0.0075);
   }
 
-  /** Twelve stations, twelve cups, laid from the foot back toward the lips. */
-  const stationX: number[] = [];
-  for (let i = 0; i < STATIONS; i++) {
-    stationX.push(LAST_KEY_X - (i / (STATIONS - 1)) * (LAST_KEY_X - FIRST_KEY_X));
-  }
-  const pads: Group[] = stationX.map((x, i) => {
+  /** Each cup hangs off a hinge on the rod behind it, so lifting is a turn about the rod. */
+  const hinges: Group[] = PADS.map((pad) => {
     const hinge = addTo(roll, new Group());
-    hinge.position.set(x, 0.0092, -0.0075);
+    hinge.position.set(pad.x, 0.0092, -0.0075);
     const cup = addTo(hinge, new Mesh(geoCup, matKeys));
-    cup.name = `pad-${i}`;
+    cup.name = `pad-${pad.name}`;
     cup.position.set(0, 0.0022, 0.0075);
+    if (pad.small) cup.scale.set(0.65, 1, 0.65);
     return hinge;
   });
 
   // --- contacts ----------------------------------------------------------
   /**
-   * A contact is where the hand goes, not the fingertip.
-   *
-   * The stations are 29 mm apart and a hand is 80 mm across, so the two hands
-   * are backed off toward their own ends of the tube by half a hand. Without
-   * it, a note either side of the split puts two palms 29 mm apart on a 20 mm
-   * pipe.
+   * Both hands hang under the tube and arch over it from opposite sides: the
+   * left in front with its palm turned back at the player, the right behind
+   * with its palm out at the room. `side` signs both vectors, so the two hands
+   * are one mirror pair about the tube's axis, and `along` runs the knuckles
+   * across the tube with the index toward the crown on both.
    */
-  /**
-   * ## Nobody plays a flute from above
-   *
-   * Everything here was written as if the tube were a keyboard: `normal` was
-   * `+y`, so both palms lay on top of the pipe with the fingers hanging *down*
-   * the far side of it. That is a hand on a piano, moved sideways. On a flute
-   * **both hands hang underneath and the fingers point up**, arching over the
-   * tube so the pads come down on the cups from the near side — which is why a
-   * flautist's knuckles are the part of them an audience sees and why the wrists
-   * sit a hand's depth below the instrument, not on it.
-   *
-   * ## Which side of the tube each hand is on
-   *
-   * Not the same side, and the difference is the whole of how a flute is held
-   * up. It balances on three points — the chin against the lip plate pushing
-   * *out*, the base of the left index finger pushing *back*, and the right thumb
-   * underneath — so the two hands come at the tube from opposite sides:
-   *
-   *  - **Left**, at the crown end: in front of the tube, on the audience's side
-   *    of it. Palm turned back toward the player, fingers reaching up and
-   *    curling *toward* the player over the top, thumb reaching under and round
-   *    to the B key at the back. This is the hand the flute leans on, and the
-   *    bent wrist that costs is the most recognisable thing about a flautist.
-   *  - **Right**, at the foot: behind the tube, on the player's side. Palm
-   *    turned out at the room, fingers up and curling *away* over the top, thumb
-   *    under the pipe holding it out against the chin.
-   *
-   * `side` is `+1` for the left hand and `−1` for the right, and it signs both
-   * vectors below, so the two hands are one mirror pair about the tube's axis.
-   *
-   * ## Reading the two vectors
-   *
-   * The rig takes `normal` as the **back** of the hand and lays the knuckle line
-   * along `along`; the fingers come out of the pair as `along × normal`, and the
-   * palm faces `−normal`. So neither of these is written in the direction it
-   * reads — a palm turned toward the player is a `normal` pointing away from
-   * them, and the fingers point up because the two vectors are both horizontal.
-   * Local `+z` is out toward the audience, local `−x` is the foot.
-   *
-   * The small `−y` in `normal` is the last of it: it tips each palm a few
-   * degrees up toward the pipe it is under, which is what puts the knuckles a
-   * finger's width to their own side of the tube instead of directly beneath it,
-   * and so what makes the fingers *arch* rather than stand straight up.
-   */
-  const HAND = 0.032;
+  /** From a cup's top face to an unpressed index pad, striking end-on: the flesh and the press travel. */
+  const KEY_OFF = 0.011;
+  const CUP_TOP = 0.0134;
 
-  function contactAt(station: number, side: number): Contact {
+  function contactAt(x: number, side: number): Contact {
     return {
-      position: new Vector3(stationX[station]! + side * HAND, 0.017, -0.004)
-        .applyMatrix4(fluteMatrix),
-      normal: new Vector3(0, -0.09, side).normalize()
-        .transformDirection(fluteMatrix),
-      // Knuckles across the tube, index toward the crown on both hands — which
-      // is the order `fingersOnStack` hands out, the index taking the topmost
-      // station of the pair's block. The rig seats the index next to the thumb
-      // at local `−x` on a left hand and `+x` on a right, so the sign is `−side`
-      // for both and not the `side` it read before: the two hands were each
-      // fingering their own block backwards, little finger up at the crown.
+      position: new Vector3(x, CUP_TOP + KEY_OFF, 0).applyMatrix4(fluteMatrix),
+      normal: new Vector3(0, -0.09, side).normalize().transformDirection(fluteMatrix),
       along: new Vector3(-side, 0, 0).transformDirection(fluteMatrix),
     };
   }
-  const rightContacts: Contact[] = stationX.map((_, i) => contactAt(i, -1));
-  const leftContacts: Contact[] = stationX.map((_, i) => contactAt(i, 1));
-
-  /**
-   * Which of each hand's fingers are down, per speaking hole, keyed by the
-   * speaking station rather than the clamped one. See `Contact.fingers` and
-   * `fingersOnStack`; the saxophone's copy of this table says what keying it
-   * the other way costs.
-   *
-   * A flute has no octave key and no register lever, so this is the *only*
-   * thing on the instrument that moves with the pitch other than the pads and
-   * the roll — which is exactly the reason `react` was already given the roll
-   * to animate. Now the pads have somebody pressing them.
-   */
-  const rightFingers = stationX.map((_, s) => fingersOnStack(0, HAND_SPLIT - 1, s));
-  const leftFingers = stationX.map((_, s) => fingersOnStack(HAND_SPLIT, STATIONS - 1, s));
-
-  /** Neither hand crosses to the other's keys. */
-  function stationFor(station: number, right: boolean): number {
-    return right
-      ? Math.min(station, HAND_SPLIT - 1)
-      : Math.max(station, HAND_SPLIT);
-  }
-
-  /** Hands stay over their own keys between phrases; a flute is never put down. */
-  const restRight = rightContacts[HAND_SPLIT - 3]!;
-  const restLeft = leftContacts[HAND_SPLIT + 3]!;
+  // Toward the foot from each block's first cup, so the index lands on that cup.
+  const centre = indexToCentre(opts.height);
+  const leftContact = contactAt(PADS[0]!.x - centre, 1);
+  const rightContact = contactAt(PADS[5]!.x - centre, -1);
 
   function copy(c: Contact, fingers?: FingerCurl): Contact {
-    // With `along`, which the old copy dropped on the floor. `fingers` is
-    // shared rather than cloned: a frozen tuple off a table, and nothing a
-    // caller can transform in place.
     return {
       position: c.position.clone(),
       normal: c.normal.clone(),
@@ -371,8 +333,8 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
   const [LO, HI] = SPEC.range;
 
   // --- animation state ---------------------------------------------------
-  const closed: number[] = stationX.map(() => 1);
-  const closedTo: number[] = stationX.map(() => 1);
+  const closed: number[] = PADS.map((p) => p.closed(fingeringFor(LO)));
+  const closedTo: number[] = [...closed];
   let rollAt = 0;
   let rollTo = 0;
   let shiver = 0;
@@ -384,9 +346,7 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     archetype: 'flute',
     root,
     station: {
-      // Behind the lips, not behind the instrument: the player's shoulders sit
-      // where the head joint is, not at the middle of the tube. The z puts the
-      // embouchure 0.12 m in front of the body axis, at the mouth.
+      // Behind the lips, not behind the instrument: the shoulders sit where the head joint is.
       offset: new Vector3(lipLocal.x, 0, -mouth.z),
       facing: 0,
       posture: SPEC.posture,
@@ -394,15 +354,12 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
 
     resolve(point: PlayPoint, effector?: Effector): Contact | undefined {
       const right = isRight(effector);
-      if (point.kind === 'rest') return copy(right ? restRight : restLeft);
+      const contact = right ? rightContact : leftContact;
+      if (point.kind === 'rest') return copy(contact);
       if (point.kind !== 'hole') return undefined;
       if (point.midi < LO || point.midi > HI) return undefined;
-      const speaking = fingeringFor(point.midi).station;
-      const station = stationFor(speaking, right);
-      return copy(
-        (right ? rightContacts : leftContacts)[station]!,
-        (right ? rightFingers : leftFingers)[speaking]!,
-      );
+      const f = fingeringFor(point.midi);
+      return copy(contact, right ? f.right : f.left);
     },
 
     react(point: PlayPoint, force: number, _now: number): void {
@@ -412,28 +369,24 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
       }
       if (point.kind !== 'hole') return;
       if (point.midi < LO || point.midi > HI) return;
-      const { station, register } = fingeringFor(point.midi);
-      for (let i = 0; i < STATIONS; i++) closedTo[i] = i >= station ? 1 : 0;
-      // Rolled out for the top octave, back in for the bottom. Real, and the
-      // only thing on a flute that says which register you are in.
-      rollTo = Math.min(register, 2) * 0.055;
+      const f = fingeringFor(point.midi);
+      for (let i = 0; i < PADS.length; i++) closedTo[i] = PADS[i]!.closed(f);
+      // Rolled out for the top octave, back in for the bottom.
+      rollTo = f.register * 0.055;
       shiver = Math.max(shiver, Math.min(Math.max(force, 0), 1));
     },
 
     update(now: number): void {
-      // A non-finite beat has to stop here. `dt` would be NaN, every eased
-      // value in this method is `x += (target − x) * k`, and one NaN k turns
-      // the whole instrument into NaN transforms permanently — three.js keeps
-      // drawing it, at no position, for the rest of the show.
+      // A non-finite beat would make every eased value NaN for the rest of the show.
       if (!Number.isFinite(now)) return;
       const dt = Number.isFinite(lastBeat) ? Math.min(Math.max(now - lastBeat, 0), 0.5) : 0;
       lastBeat = now;
       if (dt === 0) return;
 
       const k = 1 - Math.exp(-dt / 0.03);
-      for (let i = 0; i < STATIONS; i++) {
+      for (let i = 0; i < hinges.length; i++) {
         closed[i] = closed[i]! + (closedTo[i]! - closed[i]!) * k;
-        pads[i]!.rotation.x = 0.30 * (1 - closed[i]!);
+        hinges[i]!.rotation.x = -LIFT * (1 - closed[i]!);
       }
       shiver += (0 - shiver) * (1 - Math.exp(-dt / 0.10));
       rollAt += (rollTo - rollAt) * (1 - Math.exp(-dt / 0.14));
@@ -441,9 +394,7 @@ export const buildFlute: InstrumentBuilder = (opts: InstrumentBuildOptions): Ins
     },
 
     dispose(): void {
-      // A second call would free the shared buffers out from under every
-      // other one of these on the stage. That renders as nothing at all and
-      // reports nothing, so it is guarded rather than left to be noticed.
+      // A second call would free the shared buffers under every other one on the stage.
       if (disposed) return;
       disposed = true;
       root.removeFromParent();
