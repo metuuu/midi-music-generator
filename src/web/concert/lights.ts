@@ -290,7 +290,7 @@ const GAIN = {
   key: 2.60,
   back: 2.40,
   foot: 1.05,
-  spot: 26,
+  spot: 9,
   warm: 2.0,
   /** The cyc is a card, not a lantern; this is its alpha rather than a candela. */
   cyc: 0.9,
@@ -306,11 +306,16 @@ const GAIN = {
 /**
  * Cone half-angles, radians.
  *
- * `spot` is 0.09 — about a 1.8 m circle at a ten-metre throw, which is one
- * person and their instrument and nothing else. There is no `cyc` angle: the
- * backdrop wash is a card, not a lantern.
+ * The follow spot has no fixed angle: an operator irises it so the pool on
+ * the subject stays `SPOT_POOL` wide, one person and their instrument with
+ * room to move, whether they stand at the lip or on the riser. The beam is
+ * drawn at the same angle so the haze pool and the lit pool share an edge.
+ * `SPOT_ANGLE` is the parked value. There is no `cyc` angle: the backdrop
+ * wash is a card, not a lantern.
  */
-const SPOT_ANGLE = 0.09;
+const SPOT_ANGLE = 0.12;
+const SPOT_POOL = 1.8;
+const SPOT_IRIS: readonly [number, number] = [0.06, 0.3];
 
 /**
  * The `warm` fixture has no cone at all, and that is the whole design.
@@ -350,7 +355,7 @@ const WARM_LAMP_HEIGHT = 3.2;
 const WARM_BEAM_ANGLE = 0.5;
 
 /** Per-fixture beam density, relative to `beamDensity(haze)`. */
-const BEAM_SCALE = { spot: 1.0, warm: 0.5, par: 0.42, back: 0.55 } as const;
+const BEAM_SCALE = { spot: 0.4, warm: 0.5, par: 0.42, back: 0.55 } as const;
 
 /**
  * How much of a fixture's gel its cone lays on the haze it crosses, at full.
@@ -364,7 +369,7 @@ const BEAM_SCALE = { spot: 1.0, warm: 0.5, par: 0.42, back: 0.55 } as const;
  * because it is the wider, softer fixture and lighting fog evenly is the thing
  * a shaft is not.
  */
-const AIR_GAIN = { spot: 0.6, warm: 0.4 } as const;
+const AIR_GAIN = { spot: 0.4, warm: 0.4 } as const;
 
 interface Tier {
   /** Lanterns on the fly bar, and how many of them show a beam. */
@@ -725,11 +730,17 @@ export function buildLightRig(
    * On a plain `Object3D`, `lookAt` puts local **+z** on the target (it is
    * cameras and lights that face -z). The can is modelled along -y with the
    * lens at its foot, so a quarter turn back about x brings the lens round
-   * from -y onto +z, and the housing points where the beam goes.
+   * from -y onto +z, and the housing points where the beam goes. `pointAt`
+   * repeats that for the two fixtures whose beams move.
    */
+  function pointAt(body: Object3D, aimAt: Vector3): void {
+    body.lookAt(aimAt);
+    body.rotateX(-Math.PI / 2);
+  }
+
   function lantern(
     parent: Object3D, at: Vector3, aimAt: Vector3, size: number, lens: MeshBasicMaterial,
-  ): void {
+  ): Group {
     const can = new Mesh(kit.bevelBox(size, size * 1.15, size, size * 0.28), housing);
     const disc = new Mesh(lensGeo(size * 0.4, size * 0.06), lens);
     disc.position.y = -size * 0.6;
@@ -740,8 +751,8 @@ export function buildLightRig(
     body.add(can, disc, hook);
     parent.add(body);
     body.position.copy(at);
-    body.lookAt(aimAt);
-    body.rotateX(-Math.PI / 2);
+    pointAt(body, aimAt);
+    return body;
   }
 
   // Fly bar: the pars. Local coordinates, because they are children of the bar.
@@ -892,8 +903,9 @@ export function buildLightRig(
    * is open — was the other candidate, and it buys a fixture at the wrong angle
    * to be a follow spot at all.
    */
+  let spotBody: Group | undefined;
   if (Number.isFinite(roomLid)) {
-    lantern(root, fohPos, park, 0.3, spotLens);
+    spotBody = lantern(root, fohPos, park, 0.3, spotLens);
     const stem = roomLid + 0.6 - fohPos.y;
     const drop = new Mesh(kit.bevelBox(0.07, stem, 0.07, 0.02), yoke);
     drop.position.set(fohPos.x, fohPos.y + stem / 2, fohPos.z);
@@ -902,7 +914,9 @@ export function buildLightRig(
 
   // The warm, on the pipe at centre. `warmPos` is the same point in world
   // space, for the beam.
-  lantern(flyRig, new Vector3(0, barDrop, 0), new Vector3(warmPos.x, 0, warmPos.z), 0.24, warmLens);
+  const warmBody = lantern(
+    flyRig, new Vector3(0, barDrop, 0), new Vector3(warmPos.x, 0, warmPos.z), 0.24, warmLens,
+  );
 
   // --- beams --------------------------------------------------------------
 
@@ -1080,6 +1094,10 @@ export function buildLightRig(
     spot.intensity = sp.intensity * GAIN.spot * master;
     spot.target.position.copy(follow.aim);
     spot.target.updateMatrixWorld();
+    const spotAngle = Math.min(SPOT_IRIS[1], Math.max(SPOT_IRIS[0],
+      Math.atan(SPOT_POOL / 2 / Math.max(fohPos.distanceTo(follow.aim), 0.5))));
+    spot.angle = spotAngle;
+    if (spotBody) pointAt(spotBody, follow.aim);
 
     // -- the warm ----------------------------------------------------------
     //
@@ -1109,6 +1127,7 @@ export function buildLightRig(
     warm.intensity = wm.intensity * GAIN.warm * master;
     warm.position.set(warmAim.x, warmAim.y + WARM_LAMP_HEIGHT, warmAim.z);
     warm.updateMatrixWorld();
+    pointAt(warmBody, warmAim);
 
     // -- lamps -------------------------------------------------------------
     //
@@ -1126,9 +1145,9 @@ export function buildLightRig(
 
     // -- beams -------------------------------------------------------------
     const spotAlpha = density * BEAM_SCALE.spot * sp.intensity * master;
-    spotBeam.aim(fohPos, toFloor(fohPos, follow.aim, beamEnd), SPOT_ANGLE * 1.25);
+    spotBeam.aim(fohPos, toFloor(fohPos, follow.aim, beamEnd), spotAngle);
     spotBeam.set(applyColour(colour, sp), spotAlpha);
-    tellAir(0, fohPos, beamEnd, SPOT_ANGLE * 1.25, applyColour(colour, sp), AIR_GAIN.spot * sp.intensity * master);
+    tellAir(0, fohPos, beamEnd, spotAngle, applyColour(colour, sp), AIR_GAIN.spot * sp.intensity * master);
 
     warmBeam.aim(warmPos, toFloor(warmPos, warmAim, beamEnd), WARM_BEAM_ANGLE);
     warmBeam.set(applyColour(colour, wm), density * BEAM_SCALE.warm * wm.intensity * master);
